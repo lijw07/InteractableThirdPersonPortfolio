@@ -7,7 +7,6 @@ public class CombatController : MonoBehaviour
 {
     [Header("Combat Settings")]
     [SerializeField] private float attackCooldown = 0.5f;
-    [SerializeField] private float blockDuration = 2f;
     [SerializeField] private float attackAnimationDuration = 0.7f;
     
     [Header("Animation")]

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class ThirdPersonCamera : MonoBehaviour
+public class BasicThirdPersonCamera : MonoBehaviour
 {
     [Header("Target Settings")]
     [SerializeField] private Transform target;
@@ -18,24 +18,18 @@ public class ThirdPersonCamera : MonoBehaviour
     private float currentX = 0f;
     private float currentY = 0f;
     private Vector2 lookInput;
-    private PlayerInputActions inputActions;
-    
-    [Header("Aim Mode")]
-    [SerializeField] private Vector3 aimOffset = new Vector3(2f, 1.5f, -4f);
-    [SerializeField] private float aimSmoothSpeed = 0.2f;
-    private bool isAiming = false;
-    private Vector3 currentOffset;
+    private BasicPlayerInput inputActions;
     
     void Awake()
     {
-        inputActions = GetComponentInParent<PlayerInputActions>();
+        inputActions = GetComponentInParent<BasicPlayerInput>();
         if (inputActions == null)
         {
-            inputActions = GetComponent<PlayerInputActions>();
+            inputActions = GetComponent<BasicPlayerInput>();
         }
         if (inputActions == null)
         {
-            inputActions = gameObject.AddComponent<PlayerInputActions>();
+            inputActions = gameObject.AddComponent<BasicPlayerInput>();
         }
     }
     
@@ -49,8 +43,6 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 angles = transform.eulerAngles;
         currentX = angles.y;
         currentY = angles.x;
-        
-        currentOffset = offset;
         
         inputActions.LookAction.performed += OnLook;
         inputActions.LookAction.canceled += OnLook;
@@ -84,11 +76,8 @@ public class ThirdPersonCamera : MonoBehaviour
     
     void UpdateCameraPosition()
     {
-        Vector3 targetOffset = isAiming ? aimOffset : offset;
-        currentOffset = Vector3.Lerp(currentOffset, targetOffset, isAiming ? aimSmoothSpeed : smoothSpeed);
-        
         Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);
-        Vector3 desiredPosition = target.position + rotation * currentOffset;
+        Vector3 desiredPosition = target.position + rotation * offset;
         
         transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
         transform.LookAt(target.position + Vector3.up * 1.5f);
@@ -106,15 +95,5 @@ public class ThirdPersonCamera : MonoBehaviour
     public Transform GetTarget()
     {
         return target;
-    }
-    
-    public void SetAimMode(bool aiming)
-    {
-        isAiming = aiming;
-    }
-    
-    public bool IsAiming()
-    {
-        return isAiming;
     }
 }
