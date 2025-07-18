@@ -79,7 +79,15 @@ public class CharacterManageController : MonoBehaviour
     {
         if (Time.time - lastSwitchTime > switchCooldown)
         {
-            SwitchToNextCharacter();
+            // Check if Alt key is currently held
+            if (Keyboard.current != null && (Keyboard.current.altKey.isPressed || Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed))
+            {
+                SwitchToPreviousCharacter();
+            }
+            else
+            {
+                SwitchToNextCharacter();
+            }
             lastSwitchTime = Time.time;
         }
     }
@@ -90,6 +98,23 @@ public class CharacterManageController : MonoBehaviour
         
         int previousIndex = currentCharacterIndex;
         currentCharacterIndex = (currentCharacterIndex + 1) % characters.Count;
+        
+        DeactivateCharacter(previousIndex);
+        ActivateCharacter(currentCharacterIndex);
+        
+        // Ensure new character is at local origin
+        currentCharacter.transform.localPosition = Vector3.zero;
+        currentCharacter.transform.localRotation = Quaternion.identity;
+        
+        Debug.Log($"Switched to character: {currentCharacter.name}");
+    }
+    
+    public void SwitchToPreviousCharacter()
+    {
+        if (characters.Count <= 1) return;
+        
+        int previousIndex = currentCharacterIndex;
+        currentCharacterIndex = (currentCharacterIndex - 1 + characters.Count) % characters.Count;
         
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);

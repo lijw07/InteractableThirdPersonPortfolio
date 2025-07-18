@@ -137,15 +137,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
                     ""initialStateCheck"": false
                 },
                 {
-                    ""name"": ""SwitchCharacterPrevious"",
-                    ""type"": ""Button"",
-                    ""id"": ""d8e4a3b5-1234-4567-8901-abcdef123456"",
-                    ""expectedControlType"": """",
-                    ""processors"": """",
-                    ""interactions"": """",
-                    ""initialStateCheck"": false
-                },
-                {
                     ""name"": ""Jump"",
                     ""type"": ""Button"",
                     ""id"": ""f1ba0d36-48eb-4cd5-b651-1c94a6531f70"",
@@ -463,90 +454,35 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
                     ""isPartOfComposite"": false
                 },
                 {
-                    ""name"": ""Alt+T"",
-                    ""id"": ""b1c2d3e4-f5g6-h7i8-j9k0-l1m2n3o4p5q6"",
-                    ""path"": ""ButtonWithOneModifier"",
+                    ""name"": ""One Modifier"",
+                    ""id"": ""567aa55e-ca41-4797-87cf-b6428f81eb15"",
+                    ""path"": ""OneModifier"",
                     ""interactions"": """",
                     ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
+                    ""groups"": """",
+                    ""action"": ""SwitchCharacter"",
                     ""isComposite"": true,
                     ""isPartOfComposite"": false
                 },
                 {
                     ""name"": ""modifier"",
-                    ""id"": ""c2d3e4f5-g6h7-i8j9-k0l1-m2n3o4p5q6r7"",
-                    ""path"": ""<Keyboard>/leftAlt"",
+                    ""id"": ""474f2a9c-7396-4eca-b495-9806a6ef6531"",
+                    ""path"": ""<Keyboard>/alt"",
                     ""interactions"": """",
                     ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
+                    ""groups"": """",
+                    ""action"": ""SwitchCharacter"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": true
                 },
                 {
-                    ""name"": ""modifier"",
-                    ""id"": ""e4f5g6h7-i8j9-k0l1-m2n3-o4p5q6r7s8t9"",
-                    ""path"": ""<Keyboard>/rightAlt"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": true
-                },
-                {
-                    ""name"": ""button"",
-                    ""id"": ""d3e4f5g6-h7i8-j9k0-l1m2-n3o4p5q6r7s8"",
+                    ""name"": ""binding"",
+                    ""id"": ""0e957b94-8d58-4390-9d06-6faa0d86f996"",
                     ""path"": ""<Keyboard>/t"",
                     ""interactions"": """",
                     ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": true
-                },
-                {
-                    ""name"": ""Option+T (Mac)"",
-                    ""id"": ""f5g6h7i8-j9k0-l1m2-n3o4-p5q6r7s8t9u0"",
-                    ""path"": ""ButtonWithOneModifier"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
-                    ""isComposite"": true,
-                    ""isPartOfComposite"": false
-                },
-                {
-                    ""name"": ""modifier"",
-                    ""id"": ""g6h7i8j9-k0l1-m2n3-o4p5-q6r7s8t9u0v1"",
-                    ""path"": ""<Keyboard>/leftApple"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": true
-                },
-                {
-                    ""name"": ""modifier"",
-                    ""id"": ""h7i8j9k0-l1m2-n3o4-p5q6-r7s8t9u0v1w2"",
-                    ""path"": ""<Keyboard>/rightApple"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": true
-                },
-                {
-                    ""name"": ""button"",
-                    ""id"": ""i8j9k0l1-m2n3-o4p5-q6r7-s8t9u0v1w2x3"",
-                    ""path"": ""<Keyboard>/t"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""SwitchCharacterPrevious"",
+                    ""groups"": """",
+                    ""action"": ""SwitchCharacter"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": true
                 }
@@ -1139,7 +1075,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         m_Player_Interact = m_Player.FindAction("Interact", throwIfNotFound: true);
         m_Player_Crouch = m_Player.FindAction("Crouch", throwIfNotFound: true);
         m_Player_SwitchCharacter = m_Player.FindAction("SwitchCharacter", throwIfNotFound: true);
-        m_Player_SwitchCharacterPrevious = m_Player.FindAction("SwitchCharacterPrevious", throwIfNotFound: true);
         m_Player_Jump = m_Player.FindAction("Jump", throwIfNotFound: true);
         m_Player_Sprint = m_Player.FindAction("Sprint", throwIfNotFound: true);
         // UI
@@ -1240,7 +1175,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Interact;
     private readonly InputAction m_Player_Crouch;
     private readonly InputAction m_Player_SwitchCharacter;
-    private readonly InputAction m_Player_SwitchCharacterPrevious;
     private readonly InputAction m_Player_Jump;
     private readonly InputAction m_Player_Sprint;
     /// <summary>
@@ -1274,10 +1208,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/SwitchCharacter".
         /// </summary>
         public InputAction @SwitchCharacter => m_Wrapper.m_Player_SwitchCharacter;
-        /// <summary>
-        /// Provides access to the underlying input action "Player/SwitchCharacterPrevious".
-        /// </summary>
-        public InputAction @SwitchCharacterPrevious => m_Wrapper.m_Player_SwitchCharacterPrevious;
         /// <summary>
         /// Provides access to the underlying input action "Player/Jump".
         /// </summary>
@@ -1327,9 +1257,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
             @SwitchCharacter.started += instance.OnSwitchCharacter;
             @SwitchCharacter.performed += instance.OnSwitchCharacter;
             @SwitchCharacter.canceled += instance.OnSwitchCharacter;
-            @SwitchCharacterPrevious.started += instance.OnSwitchCharacterPrevious;
-            @SwitchCharacterPrevious.performed += instance.OnSwitchCharacterPrevious;
-            @SwitchCharacterPrevious.canceled += instance.OnSwitchCharacterPrevious;
             @Jump.started += instance.OnJump;
             @Jump.performed += instance.OnJump;
             @Jump.canceled += instance.OnJump;
@@ -1362,9 +1289,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
             @SwitchCharacter.started -= instance.OnSwitchCharacter;
             @SwitchCharacter.performed -= instance.OnSwitchCharacter;
             @SwitchCharacter.canceled -= instance.OnSwitchCharacter;
-            @SwitchCharacterPrevious.started -= instance.OnSwitchCharacterPrevious;
-            @SwitchCharacterPrevious.performed -= instance.OnSwitchCharacterPrevious;
-            @SwitchCharacterPrevious.canceled -= instance.OnSwitchCharacterPrevious;
             @Jump.started -= instance.OnJump;
             @Jump.performed -= instance.OnJump;
             @Jump.canceled -= instance.OnJump;
@@ -1706,13 +1630,6 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnSwitchCharacter(InputAction.CallbackContext context);
-        /// <summary>
-        /// Method invoked when associated input action "SwitchCharacterPrevious" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
-        /// </summary>
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnSwitchCharacterPrevious(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Jump" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
