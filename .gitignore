@@ -173,3 +173,62 @@ Thumbs.db
 
 # vFolders cache
 /[Ll]ibrary/vFolders Cache.asset
+
+# =====================
+# Additional Unity Generated Files
+# =====================
+
+# Unity Editor State Files
+/Library/StateCache/
+/Library/Search/
+/Library/EditorInstance.json
+/Library/InspectorExpandedItems.asset
+/Library/MonoManager.asset
+/Library/SceneVisibilityState.asset
+/Library/LastSceneManagerSetup.txt
+/Library/EditorSnapSettings.asset
+/Library/EditorOnlyScriptingSettings.json
+/Library/EditorOnlyVirtualTextureState.json
+*.dwlt
+*.dwlt.meta
+
+# Build and Compilation
+/Library/Bee/
+/Library/BurstCache/
+/Library/APIUpdater/
+/Library/ShaderCache/
+/Library/ShaderCache.db
+/Library/BuildSettings.asset
+/Library/BuildPlayer.prefs
+
+# Package Manager Cache
+/Library/PackageManager/
+
+# Source Asset Database
+/Library/SourceAssetDB*
+/Library/ArtifactDB*
+/Library/SpriteAtlasDatabase.asset
+
+# Unity Process Files
+/Temp/UnityLockfile
+/Temp/workerlic
+*.pid
+/Library/ilpp.pid
+
+# Hot Reload Runtime
+/Library/com.singularitygroup.hotreload/
+
+# Import Worker Logs
+/Logs/AssetImportWorker*.log
+/Logs/shadercompiler-*.log
+
+# VioloStudio State
+/Library/vInspector State.asset
+
+# Documentation Folders (generated)
+**/Documentation~
+**/Samples~
+
+# PROTOFACTOR Asset
+/[Aa]ssets/PROTOFACTOR/
+/[Aa]ssets/PROTOFACTOR.meta

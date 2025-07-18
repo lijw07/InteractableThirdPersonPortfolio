@@ -825,6 +825,7 @@ PlayerSettings:
   webWasm2023: 0
   scriptingDefineSymbols:
     Standalone: ALLIN13DSHADER_URP;GAIA_INPUT_SYSTEM;UPPipeline;GAIA_2023;GAIA_2023_PRO;GAIA_MESH_PRESENT
+    WebGL: GAIA_INPUT_SYSTEM;GAIA_2023;GAIA_2023_PRO;GAIA_MESH_PRESENT;ALLIN13DSHADER_URP
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

@@ -1,121 +1,277 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
-    [Header("Target Settings")]
     [SerializeField] private Transform target;
-    [SerializeField] private Vector3 offset = new Vector3(0, 5, -10);
+    [SerializeField] private float distance = 10f;
+    [SerializeField] private float mouseSensitivity = 100f;
+    [SerializeField] private float zoomSensitivity = 0.5f;
+    [SerializeField] private float minZoomDistance = 5f;
+    [SerializeField] private float maxZoomDistance = 20f;
+    [SerializeField] private float targetHeightOffset = 1.2f; // Height offset to focus on character's upper body
     
-    [Header("Camera Settings")]
-    [SerializeField] private float smoothSpeed = 0.125f;
-    [SerializeField] private float rotationSpeed = 5f;
-    
-    [Header("Mouse Look")]
-    [SerializeField] private float mouseSensitivity = 2f;
-    [SerializeField] private float minVerticalAngle = -30f;
-    [SerializeField] private float maxVerticalAngle = 60f;
+    [Header("Debug Settings")]
+    [SerializeField] private bool enableDebugLogs = true;
+    [SerializeField] private bool logMouseInput = false;
+    [SerializeField] private bool logCameraPosition = false;
+    [SerializeField] private bool logTargetInfo = true;
+    [SerializeField] private bool logAngleHistory = true;
+    [SerializeField] private int angleHistorySize = 10;
     
     private float currentX = 0f;
-    private float currentY = 0f;
-    private Vector2 lookInput;
+    private float currentY = 20f;
     private PlayerInputActions inputActions;
     
-    [Header("Aim Mode")]
-    [SerializeField] private Vector3 aimOffset = new Vector3(2f, 1.5f, -4f);
-    [SerializeField] private float aimSmoothSpeed = 0.2f;
-    private bool isAiming = false;
-    private Vector3 currentOffset;
+    // Debug tracking
+    private Vector3 lastTargetPosition;
+    private float lastUpdateTime;
+    private System.Collections.Generic.Queue<string> angleHistory;
+    private int frameCounter = 0;
     
     void Awake()
     {
-        inputActions = GetComponentInParent<PlayerInputActions>();
-        if (inputActions == null)
+        inputActions = GetComponent<PlayerInputActions>() ?? gameObject.AddComponent<PlayerInputActions>();
+        
+        // Lock cursor to game window and hide it
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+        
+        // Auto-assign target if not set
+        if (target == null)
         {
-            inputActions = GetComponent<PlayerInputActions>();
+            GameObject playerController = GameObject.Find("PlayerController");
+            if (playerController != null)
+            {
+                target = playerController.transform;
+                Debug.Log($"[ThirdPersonCamera] Auto-assigned target to: {target.name}");
+            }
         }
-        if (inputActions == null)
+        
+        if (enableDebugLogs)
         {
-            inputActions = gameObject.AddComponent<PlayerInputActions>();
+            Debug.Log($"[ThirdPersonCamera] Initialized - Initial angles: X={currentX}, Y={currentY}, Distance={distance}");
         }
+        
+        // Initialize angle history
+        angleHistory = new System.Collections.Generic.Queue<string>(angleHistorySize);
     }
     
     void Start()
     {
-        if (target != null)
+        if (target == null)
         {
-            transform.position = target.position + offset;
+            Debug.LogError("[ThirdPersonCamera] No target assigned! Camera will not function properly.");
         }
-        
-        Vector3 angles = transform.eulerAngles;
-        currentX = angles.y;
-        currentY = angles.x;
-        
-        currentOffset = offset;
-        
-        inputActions.LookAction.performed += OnLook;
-        inputActions.LookAction.canceled += OnLook;
-    }
-    
-    void OnDestroy()
-    {
-        inputActions.LookAction.performed -= OnLook;
-        inputActions.LookAction.canceled -= OnLook;
-    }
-    
-    void OnLook(InputAction.CallbackContext context)
-    {
-        lookInput = context.ReadValue<Vector2>();
+        else
+        {
+            lastTargetPosition = target.position;
+            if (enableDebugLogs)
+            {
+                Debug.Log($"[ThirdPersonCamera] Target confirmed: {target.name} at {target.position}");
+            }
+        }
     }
     
     void LateUpdate()
     {
-        if (target == null) return;
+        if (target == null)
+        {
+            if (Time.frameCount % 60 == 0 && enableDebugLogs) // Log every second
+            {
+                Debug.LogWarning("[ThirdPersonCamera] No target assigned!");
+            }
+            return;
+        }
         
-        HandleMouseInput();
-        UpdateCameraPosition();
-    }
-    
-    void HandleMouseInput()
-    {
-        currentX += lookInput.x * mouseSensitivity * Time.deltaTime;
-        currentY -= lookInput.y * mouseSensitivity * Time.deltaTime;
-        currentY = Mathf.Clamp(currentY, minVerticalAngle, maxVerticalAngle);
-    }
-    
-    void UpdateCameraPosition()
-    {
-        Vector3 targetOffset = isAiming ? aimOffset : offset;
-        currentOffset = Vector3.Lerp(currentOffset, targetOffset, isAiming ? aimSmoothSpeed : smoothSpeed);
+        // Track frame timing
+        float deltaTime = Time.time - lastUpdateTime;
+        lastUpdateTime = Time.time;
         
+        // Detect target jumps
+        if (enableDebugLogs && logTargetInfo)
+        {
+            float targetMoveDist = Vector3.Distance(target.position, lastTargetPosition);
+            if (targetMoveDist > 5f) // Large movement in one frame
+            {
+                Debug.LogWarning($"[ThirdPersonCamera] Target jumped {targetMoveDist:F2} units in one frame! From {lastTargetPosition} to {target.position}");
+            }
+            lastTargetPosition = target.position;
+        }
+        
+        // Handle escape key to unlock cursor (for testing in editor)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            if (enableDebugLogs) Debug.Log("[ThirdPersonCamera] Cursor unlocked");
+        }
+        
+        // Debug: Reset camera rotation with R key
+        if (Input.GetKeyDown(KeyCode.R) && Input.GetKey(KeyCode.LeftShift))
+        {
+            currentX = 0f;
+            currentY = 20f;
+            if (enableDebugLogs) Debug.Log($"[ThirdPersonCamera] Camera rotation reset to X={currentX}, Y={currentY}");
+        }
+        
+        // Re-lock cursor on click
+        if (Input.GetMouseButtonDown(0))
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            if (enableDebugLogs) Debug.Log("[ThirdPersonCamera] Cursor locked");
+        }
+        
+        // Handle mouse rotation
+        Vector2 mouseInput = inputActions.LookValue;
+        
+        float prevX = currentX;
+        float prevY = currentY;
+        
+        // Store raw angle before normalization for debugging
+        float rawX = currentX + mouseInput.x * mouseSensitivity * Time.deltaTime;
+        
+        currentX += mouseInput.x * mouseSensitivity * Time.deltaTime;
+        currentY -= mouseInput.y * mouseSensitivity * Time.deltaTime;
+        
+        // Track angle history before normalization
+        if (enableDebugLogs && logAngleHistory && frameCounter % 5 == 0) // Log every 5 frames
+        {
+            string historyEntry = $"Frame {frameCounter}: PreNorm X={currentX:F1}, Raw={rawX:F1}, Input={mouseInput.x:F3}, dt={Time.deltaTime:F4}";
+            angleHistory.Enqueue(historyEntry);
+            if (angleHistory.Count > angleHistorySize)
+                angleHistory.Dequeue();
+        }
+        
+        // NO NORMALIZATION - Let angles accumulate freely
+        // Unity's Quaternion.Euler handles any angle values correctly
+        
+        // Clamp Y rotation
+        currentY = Mathf.Clamp(currentY, -30f, 60f);
+        
+        if (enableDebugLogs && logMouseInput && mouseInput.magnitude > 0.1f)
+        {
+            Debug.Log($"[ThirdPersonCamera] Mouse input: {mouseInput}, Angles: X={currentX:F1} (Δ{currentX-prevX:F2}), Y={currentY:F1} (Δ{currentY-prevY:F2})");
+        }
+        
+        // Detect actual angle snapping issues
+        float actualDelta = mouseInput.x * mouseSensitivity * Time.deltaTime;
+        float measuredDelta = currentX - prevX;
+        
+        // Without normalization, any large discrepancy between expected and actual delta is a real issue
+        if (Mathf.Abs(measuredDelta - actualDelta) > 0.1f && Mathf.Abs(actualDelta) > 0.01f && enableDebugLogs)
+        {
+            Debug.LogError($"[ThirdPersonCamera] Angle snap detected! X went from {prevX:F1} to {currentX:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Details - Raw input: {mouseInput.x}, Expected delta: {actualDelta:F3}, Actual delta: {measuredDelta:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Time.deltaTime: {Time.deltaTime}");
+            
+            // Print angle history
+            if (logAngleHistory && angleHistory.Count > 0)
+            {
+                Debug.LogError("[ThirdPersonCamera] === Angle History ===");
+                foreach (string entry in angleHistory)
+                {
+                    Debug.LogError($"[ThirdPersonCamera] {entry}");
+                }
+            }
+        }
+        
+        frameCounter++;
+        
+        // Handle zoom
+        float scrollInput = inputActions.ScrollValue;
+        if (scrollInput != 0 && enableDebugLogs)
+        {
+            float prevDist = distance;
+            distance -= scrollInput * zoomSensitivity;
+            distance = Mathf.Clamp(distance, minZoomDistance, maxZoomDistance);
+            Debug.Log($"[ThirdPersonCamera] Zoom: {prevDist:F1} -> {distance:F1} (scroll: {scrollInput})");
+        }
+        
+        // Apply camera position
         Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);
-        Vector3 desiredPosition = target.position + rotation * currentOffset;
+        Vector3 offset = rotation * new Vector3(0, 0, -distance);
         
-        transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
-        transform.LookAt(target.position + Vector3.up * 1.5f);
+        // Add height offset to focus on character's head/upper body
+        Vector3 focusPoint = target.position + Vector3.up * targetHeightOffset;
+        Vector3 desiredPosition = focusPoint + offset;
+        
+        // Log position changes
+        if (enableDebugLogs && logCameraPosition)
+        {
+            float posChange = Vector3.Distance(transform.position, desiredPosition);
+            if (posChange > 0.1f)
+            {
+                Debug.Log($"[ThirdPersonCamera] Position change: {posChange:F2} units, Target: {target.position}, Focus: {focusPoint}");
+            }
+        }
+        
+        transform.position = desiredPosition;
+        transform.rotation = rotation;
     }
     
     public void SetTarget(Transform newTarget)
     {
-        target = newTarget;
-        if (target != null)
+        if (enableDebugLogs)
         {
-            transform.position = target.position + offset;
+            Debug.Log($"[ThirdPersonCamera] SetTarget called - Old: {(target != null ? target.name : "null")}, New: {(newTarget != null ? newTarget.name : "null")}");
+        }
+        
+        target = newTarget;
+        
+        if (newTarget != null)
+        {
+            lastTargetPosition = newTarget.position;
         }
     }
     
-    public Transform GetTarget()
+    public Transform GetTarget() => target;
+    
+    void OnValidate()
     {
-        return target;
+        if (enableDebugLogs && Application.isPlaying)
+        {
+            Debug.Log($"[ThirdPersonCamera] Settings changed - Distance: {distance}, MouseSens: {mouseSensitivity}, HeightOffset: {targetHeightOffset}");
+        }
     }
     
-    public void SetAimMode(bool aiming)
+    // Normalize angle to be between -180 and 180
+    float NormalizeAngle(float angle)
     {
-        isAiming = aiming;
-    }
-    
-    public bool IsAiming()
-    {
-        return isAiming;
+        // Track normalization for debugging
+        float originalAngle = angle;
+        int iterations = 0;
+        
+        while (angle > 180f) 
+        {
+            angle -= 360f;
+            iterations++;
+            if (iterations > 10) // Safety check
+            {
+                Debug.LogError($"[ThirdPersonCamera] NormalizeAngle stuck in loop! Original: {originalAngle}, Current: {angle}");
+                break;
+            }
+        }
+        
+        iterations = 0;
+        while (angle < -180f) 
+        {
+            angle += 360f;
+            iterations++;
+            if (iterations > 10) // Safety check
+            {
+                Debug.LogError($"[ThirdPersonCamera] NormalizeAngle stuck in loop! Original: {originalAngle}, Current: {angle}");
+                break;
+            }
+        }
+        
+        if (enableDebugLogs && Mathf.Abs(originalAngle - angle) > 180f)
+        {
+            Debug.LogWarning($"[ThirdPersonCamera] Large normalization: {originalAngle:F1} -> {angle:F1}");
+        }
+        
+        return angle;
     }
 }
