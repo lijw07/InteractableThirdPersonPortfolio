@@ -759,7 +759,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 540598284}
   distance: 5
-  mouseSensitivity: 80
+  mouseSensitivity: 10
   heightOffset: 1.5
 --- !u!43 &382971684
 Mesh:
@@ -1640,7 +1640,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   walkSpeed: 2
   runSpeed: 3.5
-  sprintSpeed: 4
+  sprintSpeed: 6
   accelerationTime: 0.3
   decelerationTime: 0.2
   inputSmoothTime: 0.1
@@ -1650,7 +1650,16 @@ MonoBehaviour:
   maxIdleTurnSpeed: 5
   useTurnInPlaceAnimations: 1
   turnAngleSmoothTime: 0.2
-  showDebugGUI: 1
+  turnInPlaceRotationSpeed: 90
+  turnAngleDeadzone: 15
+  turnCompleteThreshold: 10
+  turn180SpeedMultiplier: 1.2
+  turnStartThreshold: 60
+  turnStopThreshold: 55
+  turn180StartThreshold: 135
+  turn180StopThreshold: 130
+  maxRotationPerFrame: 360
+  turnCompletionThreshold: 30
 --- !u!114 &1030201515
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1675,6 +1684,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71fc17bba64a74eb3a5e7e443b0904c8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &1030201517
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1030201511}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d87f784646ddd4f12a50e69ccfccc8bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showDebugGUI: 1
+  showGizmos: 1
 --- !u!1001 &1192513597
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1752,6 +1775,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2724410784617988641, guid: f3c202e3b1c0044ae9b0528361807d8c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1030201514}
+    - targetCorrespondingSourceObject: {fileID: 2724410784617988641, guid: f3c202e3b1c0044ae9b0528361807d8c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1030201517}
   m_SourcePrefab: {fileID: 100100000, guid: f3c202e3b1c0044ae9b0528361807d8c, type: 3}
 --- !u!4 &1368045326 stripped
 Transform:
@@ -2396,7 +2422,16 @@ MonoBehaviour:
   maxIdleTurnSpeed: 5
   useTurnInPlaceAnimations: 1
   turnAngleSmoothTime: 0.2
-  showDebugGUI: 1
+  turnInPlaceRotationSpeed: 90
+  turnAngleDeadzone: 15
+  turnCompleteThreshold: 10
+  turn180SpeedMultiplier: 1.2
+  turnStartThreshold: 60
+  turnStopThreshold: 55
+  turn180StartThreshold: 135
+  turn180StopThreshold: 130
+  maxRotationPerFrame: 360
+  turnCompletionThreshold: 30
 --- !u!114 &1956188698
 MonoBehaviour:
   m_ObjectHideFlags: 0

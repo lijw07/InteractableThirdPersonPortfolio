@@ -10,18 +10,17 @@ public class ThirdPersonCamera : MonoBehaviour
     
     private float currentX = 0f;
     private float currentY = 20f;
-    private PlayerInputActions inputActions;
+    private PlayerController playerController;
     
     private void Awake()
     {
-        inputActions = GetComponent<PlayerInputActions>();
+        playerController = FindObjectOfType<PlayerController>();
         
-        if (inputActions == null)
+        if (playerController == null)
         {
-            inputActions = gameObject.AddComponent<PlayerInputActions>();
+            Debug.LogError("ThirdPersonCamera: PlayerController not found!");
         }
         
-        // Auto-find target if not assigned
         if (target == null)
         {
             GameObject player = GameObject.Find("LookAt");
@@ -31,7 +30,6 @@ public class ThirdPersonCamera : MonoBehaviour
             }
         }
         
-        // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
@@ -46,26 +44,22 @@ public class ThirdPersonCamera : MonoBehaviour
     
     private void HandleCameraRotation()
     {
-        // Get mouse input
-        Vector2 mouseInput = inputActions.LookValue;
+        if (playerController == null) return;
         
-        // Update rotation angles
+        Vector2 mouseInput = playerController.GetLookInput();
+        
         currentX += mouseInput.x * mouseSensitivity * Time.deltaTime;
         currentY -= mouseInput.y * mouseSensitivity * Time.deltaTime;
         
-        // Clamp vertical rotation
         currentY = Mathf.Clamp(currentY, -30f, 60f);
     }
     
     private void UpdateCameraPosition()
     {
-        // Calculate rotation
         Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);
         
-        // Calculate position offset
         Vector3 offset = rotation * new Vector3(0, 0, -distance);
         
-        // Set camera position and rotation
         Vector3 targetPosition = target.position + Vector3.up * heightOffset;
         transform.position = targetPosition + offset;
         transform.rotation = rotation;
