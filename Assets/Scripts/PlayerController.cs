@@ -17,6 +17,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float cameraFacingThresholdMax = 90f;
     [SerializeField] private float minIdleTurnSpeed = 1f;
     [SerializeField] private float maxIdleTurnSpeed = 5f;
+    [SerializeField] private bool useTurnInPlaceAnimations = true;
+    [SerializeField] private float turnAngleSmoothTime = 0.2f;
     
     [Header("Debug")]
     [SerializeField] private bool showDebugGUI = false;
@@ -44,6 +46,10 @@ public class PlayerController : MonoBehaviour
     private Vector3 currentMoveDirection = Vector3.zero;
     private Vector3 calculatedVelocity = Vector3.zero;
     private Vector3 previousPosition = Vector3.zero;
+    
+    private float currentTurnAngle = 0f;
+    private float targetTurnAngle = 0f;
+    private float turnAngleVelocity = 0f;
     
     private void Awake()
     {
@@ -272,6 +278,27 @@ public class PlayerController : MonoBehaviour
     
     private void HandleIdleRotation()
     {
+        if (useTurnInPlaceAnimations)
+        {
+            HandleTurnInPlaceAnimation();
+        }
+        else
+        {
+            HandleSmoothIdleRotation();
+        }
+    }
+    
+    private void HandleTurnInPlaceAnimation()
+    {
+        Vector3 cameraForward = GetCameraForwardDirection();
+        float angleDifference = CalculateSignedAngleDifference(cameraForward);
+        
+        targetTurnAngle = CalculateTurnAngleThreshold(angleDifference);
+        SmoothTurnAngle();
+    }
+    
+    private void HandleSmoothIdleRotation()
+    {
         Vector3 cameraForward = GetCameraForwardDirection();
         float angleDifference = CalculateAngleDifference(cameraForward);
         
@@ -279,6 +306,59 @@ public class PlayerController : MonoBehaviour
         {
             RotateTowardsCamera(cameraForward, angleDifference);
         }
+        
+        targetTurnAngle = 0f;
+        SmoothTurnAngle();
+    }
+    
+    private float CalculateSignedAngleDifference(Vector3 cameraForward)
+    {
+        Vector3 currentForward = transform.forward;
+        float angle = Vector3.Angle(currentForward, cameraForward);
+        
+        Vector3 cross = Vector3.Cross(currentForward, cameraForward);
+        if (cross.y < 0)
+        {
+            angle = -angle;
+        }
+        
+        return angle;
+    }
+    
+    private float CalculateTurnAngleThreshold(float angleDifference)
+    {
+        if (angleDifference >= -45f && angleDifference <= 45f)
+        {
+            return 0f;
+        }
+        else if (angleDifference > 45f && angleDifference <= 135f)
+        {
+            return 90f;
+        }
+        else if (angleDifference > 135f)
+        {
+            return 180f;
+        }
+        else if (angleDifference < -45f && angleDifference >= -135f)
+        {
+            return -90f;
+        }
+        else
+        {
+            return -180f;
+        }
+    }
+    
+    private void SmoothTurnAngle()
+    {
+        currentTurnAngle = Mathf.SmoothDamp(
+            currentTurnAngle, 
+            targetTurnAngle, 
+            ref turnAngleVelocity, 
+            turnAngleSmoothTime
+        );
+        
+        ClampToZero(ref currentTurnAngle, ref turnAngleVelocity);
     }
     
     private Vector3 GetCameraForwardDirection()
@@ -366,6 +446,7 @@ public class PlayerController : MonoBehaviour
     public float GetTargetSpeed() => targetSpeed;
     public float GetCurrentHorizontal() => currentHorizontal;
     public float GetCurrentVertical() => currentVertical;
+    public float GetCurrentTurnAngle() => currentTurnAngle;
     public bool IsWalking() => isWalking;
     public bool IsSprinting() => isSprinting;
     
