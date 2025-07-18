@@ -17,6 +17,8 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField] private bool logMouseInput = false;
     [SerializeField] private bool logCameraPosition = false;
     [SerializeField] private bool logTargetInfo = true;
+    [SerializeField] private bool logAngleHistory = true;
+    [SerializeField] private int angleHistorySize = 10;
     
     private float currentX = 0f;
     private float currentY = 20f;
@@ -25,6 +27,8 @@ public class ThirdPersonCamera : MonoBehaviour
     // Debug tracking
     private Vector3 lastTargetPosition;
     private float lastUpdateTime;
+    private System.Collections.Generic.Queue<string> angleHistory;
+    private int frameCounter = 0;
     
     void Awake()
     {
@@ -49,6 +53,9 @@ public class ThirdPersonCamera : MonoBehaviour
         {
             Debug.Log($"[ThirdPersonCamera] Initialized - Initial angles: X={currentX}, Y={currentY}, Distance={distance}");
         }
+        
+        // Initialize angle history
+        angleHistory = new System.Collections.Generic.Queue<string>(angleHistorySize);
     }
     
     void Start()
@@ -101,6 +108,14 @@ public class ThirdPersonCamera : MonoBehaviour
             if (enableDebugLogs) Debug.Log("[ThirdPersonCamera] Cursor unlocked");
         }
         
+        // Debug: Reset camera rotation with R key
+        if (Input.GetKeyDown(KeyCode.R) && Input.GetKey(KeyCode.LeftShift))
+        {
+            currentX = 0f;
+            currentY = 20f;
+            if (enableDebugLogs) Debug.Log($"[ThirdPersonCamera] Camera rotation reset to X={currentX}, Y={currentY}");
+        }
+        
         // Re-lock cursor on click
         if (Input.GetMouseButtonDown(0))
         {
@@ -111,14 +126,34 @@ public class ThirdPersonCamera : MonoBehaviour
         
         // Handle mouse rotation
         Vector2 mouseInput = inputActions.LookValue;
+        
         float prevX = currentX;
         float prevY = currentY;
+        
+        // Store raw angle before normalization for debugging
+        float rawX = currentX + mouseInput.x * mouseSensitivity * Time.deltaTime;
         
         currentX += mouseInput.x * mouseSensitivity * Time.deltaTime;
         currentY -= mouseInput.y * mouseSensitivity * Time.deltaTime;
         
+        // Track angle history before normalization
+        if (enableDebugLogs && logAngleHistory && frameCounter % 5 == 0) // Log every 5 frames
+        {
+            string historyEntry = $"Frame {frameCounter}: PreNorm X={currentX:F1}, Raw={rawX:F1}, Input={mouseInput.x:F3}, dt={Time.deltaTime:F4}";
+            angleHistory.Enqueue(historyEntry);
+            if (angleHistory.Count > angleHistorySize)
+                angleHistory.Dequeue();
+        }
+        
         // Normalize X rotation to prevent accumulation beyond 360 degrees
+        float preNormalizedX = currentX;
         currentX = NormalizeAngle(currentX);
+        
+        // Detect normalization jumps
+        if (Mathf.Abs(currentX - preNormalizedX) > 0.1f && enableDebugLogs)
+        {
+            Debug.LogWarning($"[ThirdPersonCamera] Normalization changed angle: {preNormalizedX:F1} -> {currentX:F1}");
+        }
         
         // Clamp Y rotation
         currentY = Mathf.Clamp(currentY, -30f, 60f);
@@ -128,15 +163,32 @@ public class ThirdPersonCamera : MonoBehaviour
             Debug.Log($"[ThirdPersonCamera] Mouse input: {mouseInput}, Angles: X={currentX:F1} (Δ{currentX-prevX:F2}), Y={currentY:F1} (Δ{currentY-prevY:F2})");
         }
         
-        // Detect ACTUAL angle wrapping issues (not legitimate boundary crossings)
-        float actualDelta = Mathf.Abs(mouseInput.x * mouseSensitivity * Time.deltaTime);
-        float measuredDelta = Mathf.Abs(Mathf.DeltaAngle(prevX, currentX));
+        // Detect angle wrapping issues with more detailed logging
+        float actualDelta = mouseInput.x * mouseSensitivity * Time.deltaTime;
         
-        // If the measured change is much larger than the actual input, we have a problem
-        if (measuredDelta > actualDelta + 10f && enableDebugLogs)
+        // Use DeltaAngle to properly handle the -180/180 boundary
+        float properDelta = Mathf.DeltaAngle(prevX, currentX);
+        
+        // Only flag as error if the proper delta is significantly larger than the input delta
+        // This accounts for the -180/180 boundary crossing
+        if (Mathf.Abs(properDelta) > Mathf.Abs(actualDelta) + 10f && Mathf.Abs(actualDelta) > 0.01f && enableDebugLogs)
         {
-            Debug.LogError($"[ThirdPersonCamera] Unexpected angle jump! X went from {prevX:F1} to {currentX:F1} (measured delta: {measuredDelta:F1}, expected: {actualDelta:F1})");
+            Debug.LogError($"[ThirdPersonCamera] Angle wrap detected! X went from {prevX:F1} to {currentX:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Details - Raw input: {mouseInput.x}, Expected delta: {actualDelta:F3}, Actual delta: {properDelta:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Pre-normalized: {preNormalizedX:F1}, Time.deltaTime: {Time.deltaTime}");
+            
+            // Print angle history
+            if (logAngleHistory && angleHistory.Count > 0)
+            {
+                Debug.LogError("[ThirdPersonCamera] === Angle History ===");
+                foreach (string entry in angleHistory)
+                {
+                    Debug.LogError($"[ThirdPersonCamera] {entry}");
+                }
+            }
         }
+        
+        frameCounter++;
         
         // Handle zoom
         float scrollInput = inputActions.ScrollValue;
@@ -204,8 +256,38 @@ public class ThirdPersonCamera : MonoBehaviour
     // Normalize angle to be between -180 and 180
     float NormalizeAngle(float angle)
     {
-        while (angle > 180f) angle -= 360f;
-        while (angle < -180f) angle += 360f;
+        // Track normalization for debugging
+        float originalAngle = angle;
+        int iterations = 0;
+        
+        while (angle > 180f) 
+        {
+            angle -= 360f;
+            iterations++;
+            if (iterations > 10) // Safety check
+            {
+                Debug.LogError($"[ThirdPersonCamera] NormalizeAngle stuck in loop! Original: {originalAngle}, Current: {angle}");
+                break;
+            }
+        }
+        
+        iterations = 0;
+        while (angle < -180f) 
+        {
+            angle += 360f;
+            iterations++;
+            if (iterations > 10) // Safety check
+            {
+                Debug.LogError($"[ThirdPersonCamera] NormalizeAngle stuck in loop! Original: {originalAngle}, Current: {angle}");
+                break;
+            }
+        }
+        
+        if (enableDebugLogs && Mathf.Abs(originalAngle - angle) > 180f)
+        {
+            Debug.LogWarning($"[ThirdPersonCamera] Large normalization: {originalAngle:F1} -> {angle:F1}");
+        }
+        
         return angle;
     }
 }

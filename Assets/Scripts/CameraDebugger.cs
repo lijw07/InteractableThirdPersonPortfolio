@@ -6,12 +6,20 @@ public class CameraDebugger : MonoBehaviour
     [SerializeField] private bool enablePeriodicLogs = true;
     [SerializeField] private float logInterval = 2f;
     [SerializeField] private bool checkForAnomalies = true;
+    [SerializeField] private bool trackAngleChanges = true;
+    [SerializeField] private float angleChangeThreshold = 45f;
     
     private ThirdPersonCamera cameraScript;
     private Transform lastKnownTarget;
     private Vector3 lastCameraPosition;
     private Vector3 lastCameraRotation;
     private float nextLogTime;
+    
+    // Angle tracking
+    private float lastXAngle;
+    private float lastYAngle;
+    private float cumulativeXRotation;
+    private System.Collections.Generic.List<float> recentXAngles;
     
     void Start()
     {
@@ -25,7 +33,10 @@ public class CameraDebugger : MonoBehaviour
         
         lastCameraPosition = transform.position;
         lastCameraRotation = transform.eulerAngles;
+        lastXAngle = transform.eulerAngles.y;
+        lastYAngle = transform.eulerAngles.x;
         nextLogTime = Time.time + logInterval;
+        recentXAngles = new System.Collections.Generic.List<float>();
         
         Debug.Log("[CameraDebugger] Camera debugger initialized");
     }
@@ -69,12 +80,46 @@ public class CameraDebugger : MonoBehaviour
             Debug.LogError($"[CameraDebugger] From: {lastCameraPosition} To: {transform.position}");
         }
         
-        // Check for rotation flips
-        Vector3 rotationDelta = transform.eulerAngles - lastCameraRotation;
-        if (Mathf.Abs(rotationDelta.x) > 90f || Mathf.Abs(rotationDelta.y) > 90f)
+        // Check for rotation flips with proper angle difference calculation
+        float xAngleDiff = Mathf.DeltaAngle(lastCameraRotation.y, transform.eulerAngles.y);
+        float yAngleDiff = Mathf.DeltaAngle(lastCameraRotation.x, transform.eulerAngles.x);
+        
+        if (Mathf.Abs(xAngleDiff) > angleChangeThreshold || Mathf.Abs(yAngleDiff) > angleChangeThreshold)
         {
-            Debug.LogError($"[CameraDebugger] ANOMALY: Camera rotation flipped! Delta: {rotationDelta}");
+            Debug.LogError($"[CameraDebugger] ANOMALY: Large rotation detected! X-axis: {xAngleDiff:F1}°, Y-axis: {yAngleDiff:F1}°");
             Debug.LogError($"[CameraDebugger] From: {lastCameraRotation} To: {transform.eulerAngles}");
+            
+            // Log recent angle history
+            if (recentXAngles.Count > 0)
+            {
+                Debug.LogError("[CameraDebugger] Recent X angle history:");
+                for (int i = 0; i < recentXAngles.Count; i++)
+                {
+                    Debug.LogError($"  [{i}] {recentXAngles[i]:F1}°");
+                }
+            }
+        }
+        
+        // Track angle changes
+        if (trackAngleChanges)
+        {
+            float currentXAngle = transform.eulerAngles.y;
+            cumulativeXRotation += xAngleDiff;
+            
+            // Keep history of recent angles
+            recentXAngles.Add(currentXAngle);
+            if (recentXAngles.Count > 10)
+                recentXAngles.RemoveAt(0);
+            
+            // Check for cumulative rotation issues
+            if (Mathf.Abs(cumulativeXRotation) > 720f)
+            {
+                Debug.LogWarning($"[CameraDebugger] Cumulative X rotation exceeds 720°: {cumulativeXRotation:F1}°");
+                cumulativeXRotation = 0f; // Reset to prevent overflow
+            }
+            
+            lastXAngle = currentXAngle;
+            lastYAngle = transform.eulerAngles.x;
         }
         
         // Check if camera is at origin (common bug)
@@ -100,8 +145,9 @@ public class CameraDebugger : MonoBehaviour
         Transform target = cameraScript.GetTarget();
         string targetInfo = target != null ? $"{target.name} at {target.position}" : "null";
         
-        Debug.Log($"[CameraDebugger] STATUS - Time: {Time.time:F1}");
-        Debug.Log($"[CameraDebugger] Camera Pos: {transform.position}, Rot: {transform.eulerAngles}");
+        Debug.Log($"[CameraDebugger] === STATUS at Time: {Time.time:F1} ===");
+        Debug.Log($"[CameraDebugger] Position: {transform.position}");
+        Debug.Log($"[CameraDebugger] Rotation: {transform.eulerAngles} (X={transform.eulerAngles.y:F1}°, Y={transform.eulerAngles.x:F1}°)");
         Debug.Log($"[CameraDebugger] Target: {targetInfo}");
         
         if (target != null)
@@ -109,6 +155,11 @@ public class CameraDebugger : MonoBehaviour
             float dist = Vector3.Distance(transform.position, target.position);
             Vector3 direction = (target.position - transform.position).normalized;
             Debug.Log($"[CameraDebugger] Distance to target: {dist:F2}, Direction: {direction}");
+        }
+        
+        if (trackAngleChanges)
+        {
+            Debug.Log($"[CameraDebugger] Cumulative X rotation: {cumulativeXRotation:F1}°");
         }
     }
     
