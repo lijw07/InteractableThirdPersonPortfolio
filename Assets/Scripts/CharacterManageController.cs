@@ -148,15 +148,15 @@ public class CharacterManageController : MonoBehaviour
             Debug.LogError($"Character {currentCharacter.name} is missing CharacterController!");
         }
         
-        if (playerController != null)
-        {
-            playerController.SetCurrentCharacter(currentCharacter);
-        }
-        
-        if (animationController != null)
-        {
-            animationController.SetCurrentCharacter(currentCharacter);
-        }
+        // if (playerController != null)
+        // {
+        //     playerController.SetCurrentCharacter(currentCharacter);
+        // }
+        //
+        // if (animationController != null)
+        // {
+        //     animationController.SetCurrentCharacter(currentCharacter);
+        // }
         
         var cameraFollow = Camera.main.GetComponent<ThirdPersonCamera>();
         if (cameraFollow != null)
