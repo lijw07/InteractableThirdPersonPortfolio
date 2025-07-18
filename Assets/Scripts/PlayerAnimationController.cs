@@ -3,28 +3,22 @@ using UnityEngine;
 public class PlayerAnimationController : MonoBehaviour
 {
     [Header("Animation Settings")]
-    [SerializeField] private float directionSmoothTime = 0.2f;
     [SerializeField] private float animationDeadzone = 0.1f;
     
     private PlayerController playerController;
+    private EnhancedPlayerController enhancedController;
     private Animator currentAnimator;
     private GameObject currentCharacter;
-    
-    private float smoothedSpeed = 0f;
-    private float speedSmoothVelocity = 0f;
-    private float smoothedHorizontal = 0f;
-    private float smoothedVertical = 0f;
-    private float horizontalVelocity = 0f;
-    private float verticalVelocity = 0f;
     
     
     void Awake()
     {
         playerController = GetComponent<PlayerController>();
+        enhancedController = GetComponent<EnhancedPlayerController>();
         
-        if (playerController == null)
+        if (playerController == null && enhancedController == null)
         {
-            Debug.LogError($"No PlayerController found on {gameObject.name}");
+            Debug.LogError($"No PlayerController or EnhancedPlayerController found on {gameObject.name}");
         }
     }
     
@@ -49,83 +43,82 @@ public class PlayerAnimationController : MonoBehaviour
     
     void UpdateAnimationParameters()
     {
-        Vector2 movementVector = playerController.GetMovementVector();
-        bool isGrounded = playerController.IsGrounded();
-        float verticalVel = playerController.GetVerticalVelocity();
-        bool isSprinting = playerController.IsSprinting();
-        bool isWalking = playerController.IsWalking();
-        float currentSpeed = playerController.GetCurrentSpeed();
-        float walkSpeed = playerController.GetWalkSpeed();
-        float runSpeed = playerController.GetRunSpeed();
+        // Use enhanced controller if available, otherwise fall back to regular controller
+        Vector2 movementVector;
+        bool isGrounded;
+        float verticalVel;
+        bool isSprinting;
+        bool isWalking;
+        float currentSpeed;
+        float walkSpeed;
+        float runSpeed;
         
-        // Calculate normalized animation speed based on actual movement speed
-        float normalizedSpeed = 0f;
+        if (enhancedController != null)
+        {
+            movementVector = enhancedController.GetMovementVector();
+            isGrounded = enhancedController.IsGrounded();
+            verticalVel = enhancedController.GetVerticalVelocity();
+            isSprinting = enhancedController.IsSprinting();
+            isWalking = enhancedController.IsWalking();
+            currentSpeed = enhancedController.GetCurrentSpeed();
+            walkSpeed = 5f; // Default values - could be exposed as properties
+            runSpeed = 10f;
+        }
+        else if (playerController != null)
+        {
+            movementVector = playerController.GetMovementVector();
+            isGrounded = playerController.IsGrounded();
+            verticalVel = playerController.GetVerticalVelocity();
+            isSprinting = playerController.IsSprinting();
+            isWalking = playerController.IsWalking();
+            currentSpeed = playerController.GetCurrentSpeed();
+            walkSpeed = playerController.GetWalkSpeed();
+            runSpeed = playerController.GetRunSpeed();
+        }
+        else
+        {
+            return; // No controller found
+        }
+        
+        // Set discrete state values for MovementSpeed
+        // 0 = idle, 0.5 = walk, 1 = run, 1.5 = sprint
+        float movementSpeed = 0f;
         
         if (currentSpeed > 0.1f)
         {
             if (isWalking)
             {
-                // Map current speed relative to walk speed: 0.5 = full walk speed
-                normalizedSpeed = Mathf.Clamp(currentSpeed / walkSpeed, 0f, 1f) * 0.5f;
+                movementSpeed = 0.5f;  // Walk state
             }
             else if (isSprinting)
             {
-                // Map current speed relative to run speed: 1.5-2.0 = sprint range
-                float sprintRatio = Mathf.Clamp(currentSpeed / runSpeed, 0f, 1f);
-                normalizedSpeed = 1.5f + (sprintRatio * 0.5f);
+                movementSpeed = 1.5f;  // Sprint state
             }
             else
             {
-                // Map current speed relative to run speed: 0.5-1.5 = run range
-                float runRatio = Mathf.Clamp(currentSpeed / runSpeed, 0f, 1f);
-                normalizedSpeed = 0.5f + runRatio;
+                movementSpeed = 1f;    // Run state
             }
         }
+        // else movementSpeed stays 0 for idle
         
-        // Handle instant start from PlayerController
-        bool isInstantStart = currentSpeed > 0.1f && smoothedSpeed < 0.1f;
+        // Apply deadzone to movement vector
+        float horizontal = movementVector.x;
+        float vertical = movementVector.y;
         
-        if (isInstantStart)
+        if (Mathf.Abs(horizontal) < animationDeadzone)
         {
-            // Match PlayerController's instant start behavior
-            smoothedSpeed = normalizedSpeed;
-            speedSmoothVelocity = 0f;
-        }
-        else
-        {
-            // Use smooth transitions for normal speed changes
-            float smoothTime = 0.15f; // Slightly faster than controller acceleration
-            smoothedSpeed = Mathf.SmoothDamp(smoothedSpeed, normalizedSpeed, ref speedSmoothVelocity, smoothTime);
+            horizontal = 0f;
         }
         
-        smoothedHorizontal = Mathf.SmoothDamp(smoothedHorizontal, movementVector.x, ref horizontalVelocity, directionSmoothTime);
-        smoothedVertical = Mathf.SmoothDamp(smoothedVertical, movementVector.y, ref verticalVelocity, directionSmoothTime);
-        
-        if (Mathf.Abs(smoothedHorizontal) < animationDeadzone)
+        if (Mathf.Abs(vertical) < animationDeadzone)
         {
-            smoothedHorizontal = 0f;
-            horizontalVelocity = 0f;
+            vertical = 0f;
         }
         
-        if (Mathf.Abs(smoothedVertical) < animationDeadzone)
-        {
-            smoothedVertical = 0f;
-            verticalVelocity = 0f;
-        }
-        
-        // Snap to exact state values when very close to prevent flickering
-        if (Mathf.Abs(smoothedSpeed - 0f) < 0.1f)
-            smoothedSpeed = 0f;
-        else if (Mathf.Abs(smoothedSpeed - 0.5f) < 0.1f)
-            smoothedSpeed = 0.5f;
-        else if (Mathf.Abs(smoothedSpeed - 1f) < 0.1f)
-            smoothedSpeed = 1f;
-        else if (Mathf.Abs(smoothedSpeed - 2f) < 0.1f)
-            smoothedSpeed = 2f;
-        
-        currentAnimator.SetFloat("MovementSpeed", smoothedSpeed);
-        currentAnimator.SetFloat("Horizontal", smoothedHorizontal);
-        currentAnimator.SetFloat("Vertical", smoothedVertical);
+        // Set animator parameters directly without smoothing
+        currentAnimator.SetFloat("MovementSpeed", movementSpeed);
+        currentAnimator.SetFloat("Horizontal", horizontal);
+        currentAnimator.SetFloat("Vertical", vertical);
         currentAnimator.SetBool("IsGrounded", isGrounded);
         currentAnimator.SetFloat("VerticalVelocity", verticalVel);
     }
@@ -139,5 +132,38 @@ public class PlayerAnimationController : MonoBehaviour
     }
     
     // Debug method to check animation sync
-    public float GetAnimationSpeed() => smoothedSpeed;
+    public float GetAnimationSpeed()
+    {
+        if (currentAnimator != null)
+        {
+            return currentAnimator.GetFloat("MovementSpeed");
+        }
+        return 0f;
+    }
+    
+    // Handle movement state changes from EnhancedPlayerController
+    public void OnMovementStateChanged(EnhancedPlayerController.MovementState newState)
+    {
+        if (currentAnimator == null) return;
+        
+        // Trigger state-specific animations
+        switch (newState)
+        {
+            case EnhancedPlayerController.MovementState.Starting:
+                currentAnimator.SetTrigger("StartMoving");
+                break;
+            case EnhancedPlayerController.MovementState.Stopping:
+                currentAnimator.SetTrigger("Stopping");
+                break;
+            case EnhancedPlayerController.MovementState.TurningInPlace:
+                currentAnimator.SetBool("TurningInPlace", true);
+                break;
+            default:
+                currentAnimator.SetBool("TurningInPlace", false);
+                break;
+        }
+        
+        // Set current state for blend tree
+        currentAnimator.SetInteger("MovementState", (int)newState);
+    }
 }
