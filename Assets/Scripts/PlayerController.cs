@@ -148,27 +148,39 @@ public class PlayerController : MonoBehaviour
     void HandleMovement()
     {
         Vector3 direction = new Vector3(smoothedMoveInput.x, 0f, smoothedMoveInput.y).normalized;
-        
+
         if (direction.magnitude >= 0.1f && cameraTransform != null)
         {
             float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
             float angleDifference = Mathf.DeltaAngle(transform.eulerAngles.y, targetAngle);
-            
-            // Handle rotation
+
+            bool allowRotation = isSprinting || smoothedMoveInput.y > 0.1f;
+
             float turnSpeed = turnSmoothTime;
             if (currentSpeed < 0.1f)
             {
                 turnSpeed = stationaryTurnSpeed * Time.deltaTime;
-                transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y + Mathf.Sign(angleDifference) * Mathf.Min(Mathf.Abs(angleDifference), turnSpeed), 0f);
+
+                if (allowRotation)
+                {
+                    transform.rotation = Quaternion.Euler(
+                        0f,
+                        transform.eulerAngles.y + Mathf.Sign(angleDifference) * Mathf.Min(Mathf.Abs(angleDifference), turnSpeed),
+                        0f
+                    );
+                }
             }
             else
             {
-                float speedFactor = turnSpeedCurve.Evaluate(currentSpeed / runSpeed);
-                turnSpeed = turnSmoothTime / (speedFactor * turnSpeedMultiplier);
-                float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSpeed);
-                transform.rotation = Quaternion.Euler(0f, angle, 0f);
+                if (allowRotation)
+                {
+                    float speedFactor = turnSpeedCurve.Evaluate(currentSpeed / runSpeed);
+                    turnSpeed = turnSmoothTime / (speedFactor * turnSpeedMultiplier);
+                    float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSpeed);
+                    transform.rotation = Quaternion.Euler(0f, angle, 0f);
+                }
             }
-            
+
             // Calculate target speed
             float targetSpeed;
             if (isSprinting && !isWalking)
@@ -183,11 +195,10 @@ public class PlayerController : MonoBehaviour
             {
                 targetSpeed = runSpeed;
             }
-            
+
             // Instant start from idle, smooth acceleration otherwise
             if (currentSpeed < 0.1f && smoothedMoveInput.magnitude > deadZone)
             {
-                // Instantly set to walk speed when starting from idle
                 currentSpeed = walkSpeed * smoothedMoveInput.magnitude;
                 speedVelocity = 0f;
             }
@@ -196,24 +207,17 @@ public class PlayerController : MonoBehaviour
                 float accelTime = isSprinting ? sprintAccelerationTime : accelerationTime;
                 currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed * smoothedMoveInput.magnitude, ref speedVelocity, accelTime);
             }
-            
-            // Handle movement
+
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             Vector3 movement = moveDir.normalized * currentSpeed * Time.deltaTime;
             movement.y = verticalVelocity * Time.deltaTime;
-            
-            // Store child position before movement
+
             Vector3 childPosBefore = currentCharacter.transform.position;
-            
-            // Move the character controller (child)
             currentController.Move(movement);
-            
-            // Calculate the delta and apply to parent
             Vector3 childPosAfter = currentCharacter.transform.position;
             Vector3 deltaMovement = childPosAfter - childPosBefore;
             transform.position += deltaMovement;
-            
-            // Reset child to local origin
+
             currentCharacter.transform.localPosition = Vector3.zero;
             currentCharacter.transform.rotation = transform.rotation;
         }
@@ -221,46 +225,25 @@ public class PlayerController : MonoBehaviour
         {
             float decelTime = isSprinting ? sprintDecelerationTime : decelerationTime;
             currentSpeed = Mathf.SmoothDamp(currentSpeed, 0, ref speedVelocity, decelTime);
-            
+
+            Vector3 movement = Vector3.zero;
             if (currentSpeed > 0.1f)
             {
-                Vector3 movement = transform.forward * currentSpeed * Time.deltaTime;
-                movement.y = verticalVelocity * Time.deltaTime;
-                
-                // Store child position before movement
-                Vector3 childPosBefore = currentCharacter.transform.position;
-                
-                currentController.Move(movement);
-                
-                // Calculate the delta and apply to parent
-                Vector3 childPosAfter = currentCharacter.transform.position;
-                Vector3 deltaMovement = childPosAfter - childPosBefore;
-                transform.position += deltaMovement;
-                
-                // Reset child to local origin
-                currentCharacter.transform.localPosition = Vector3.zero;
+                movement = transform.forward * currentSpeed * Time.deltaTime;
             }
-            else
-            {
-                Vector3 movement = new Vector3(0, verticalVelocity * Time.deltaTime, 0);
-                
-                // Store child position before movement
-                Vector3 childPosBefore = currentCharacter.transform.position;
-                
-                currentController.Move(movement);
-                
-                // Calculate the delta and apply to parent
-                Vector3 childPosAfter = currentCharacter.transform.position;
-                Vector3 deltaMovement = childPosAfter - childPosBefore;
-                transform.position += deltaMovement;
-                
-                // Reset child to local origin
-                currentCharacter.transform.localPosition = Vector3.zero;
-            }
-            
+            movement.y = verticalVelocity * Time.deltaTime;
+
+            Vector3 childPosBefore = currentCharacter.transform.position;
+            currentController.Move(movement);
+            Vector3 childPosAfter = currentCharacter.transform.position;
+            Vector3 deltaMovement = childPosAfter - childPosBefore;
+            transform.position += deltaMovement;
+
+            currentCharacter.transform.localPosition = Vector3.zero;
             currentCharacter.transform.rotation = transform.rotation;
         }
     }
+
     
     
     public float GetCurrentSpeed() => currentSpeed;
