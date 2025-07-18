@@ -145,15 +145,8 @@ public class ThirdPersonCamera : MonoBehaviour
                 angleHistory.Dequeue();
         }
         
-        // Normalize X rotation to prevent accumulation beyond 360 degrees
-        float preNormalizedX = currentX;
-        currentX = NormalizeAngle(currentX);
-        
-        // Detect normalization jumps
-        if (Mathf.Abs(currentX - preNormalizedX) > 0.1f && enableDebugLogs)
-        {
-            Debug.LogWarning($"[ThirdPersonCamera] Normalization changed angle: {preNormalizedX:F1} -> {currentX:F1}");
-        }
+        // NO NORMALIZATION - Let angles accumulate freely
+        // Unity's Quaternion.Euler handles any angle values correctly
         
         // Clamp Y rotation
         currentY = Mathf.Clamp(currentY, -30f, 60f);
@@ -163,19 +156,16 @@ public class ThirdPersonCamera : MonoBehaviour
             Debug.Log($"[ThirdPersonCamera] Mouse input: {mouseInput}, Angles: X={currentX:F1} (Δ{currentX-prevX:F2}), Y={currentY:F1} (Δ{currentY-prevY:F2})");
         }
         
-        // Detect angle wrapping issues with more detailed logging
+        // Detect actual angle snapping issues
         float actualDelta = mouseInput.x * mouseSensitivity * Time.deltaTime;
+        float measuredDelta = currentX - prevX;
         
-        // Use DeltaAngle to properly handle the -180/180 boundary
-        float properDelta = Mathf.DeltaAngle(prevX, currentX);
-        
-        // Only flag as error if the proper delta is significantly larger than the input delta
-        // This accounts for the -180/180 boundary crossing
-        if (Mathf.Abs(properDelta) > Mathf.Abs(actualDelta) + 10f && Mathf.Abs(actualDelta) > 0.01f && enableDebugLogs)
+        // Without normalization, any large discrepancy between expected and actual delta is a real issue
+        if (Mathf.Abs(measuredDelta - actualDelta) > 0.1f && Mathf.Abs(actualDelta) > 0.01f && enableDebugLogs)
         {
-            Debug.LogError($"[ThirdPersonCamera] Angle wrap detected! X went from {prevX:F1} to {currentX:F1}");
-            Debug.LogError($"[ThirdPersonCamera] Details - Raw input: {mouseInput.x}, Expected delta: {actualDelta:F3}, Actual delta: {properDelta:F1}");
-            Debug.LogError($"[ThirdPersonCamera] Pre-normalized: {preNormalizedX:F1}, Time.deltaTime: {Time.deltaTime}");
+            Debug.LogError($"[ThirdPersonCamera] Angle snap detected! X went from {prevX:F1} to {currentX:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Details - Raw input: {mouseInput.x}, Expected delta: {actualDelta:F3}, Actual delta: {measuredDelta:F1}");
+            Debug.LogError($"[ThirdPersonCamera] Time.deltaTime: {Time.deltaTime}");
             
             // Print angle history
             if (logAngleHistory && angleHistory.Count > 0)
@@ -219,13 +209,7 @@ public class ThirdPersonCamera : MonoBehaviour
         }
         
         transform.position = desiredPosition;
-        transform.LookAt(focusPoint);
-        
-        // Verify camera state
-        if (enableDebugLogs && Time.frameCount % 300 == 0) // Every 5 seconds
-        {
-            Debug.Log($"[ThirdPersonCamera] Status - Pos: {transform.position}, Rot: {transform.eulerAngles}, Target: {target.name} at {target.position}");
-        }
+        transform.rotation = rotation;
     }
     
     public void SetTarget(Transform newTarget)
