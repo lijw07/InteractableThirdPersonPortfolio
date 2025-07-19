@@ -5,7 +5,7 @@ public class PlayerAnimationController : MonoBehaviour
     private static readonly int MovementSpeed = Animator.StringToHash("MovementSpeed");
     private static readonly int Horizontal = Animator.StringToHash("Horizontal");
     private static readonly int Vertical = Animator.StringToHash("Vertical");
-    private static readonly int TurnAngle = Animator.StringToHash("TurnAngle");
+    private static readonly int MovementTier = Animator.StringToHash("MovementTier");
     
     private PlayerController playerController;
     private Animator animator;
@@ -28,7 +28,7 @@ public class PlayerAnimationController : MonoBehaviour
     
     private void Update()
     {
-        if (playerController == null || animator == null) return;
+        if (!playerController || !animator) return;
         
         UpdateAnimation();
     }
@@ -38,11 +38,11 @@ public class PlayerAnimationController : MonoBehaviour
         float currentSpeed = playerController.GetCurrentSpeed();
         float horizontal = playerController.GetCurrentHorizontal();
         float vertical = playerController.GetCurrentVertical();
-        float turnAngle = playerController.GetCurrentTurnAngle();
+        float movementTier = playerController.GetMovementSpeedTier();
 
         animator.SetFloat(MovementSpeed, currentSpeed);
         animator.SetFloat(Horizontal, horizontal);
         animator.SetFloat(Vertical, vertical);
-        animator.SetFloat(TurnAngle, turnAngle);
+        animator.SetFloat(MovementTier, movementTier);
     }
 }

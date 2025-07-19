@@ -17,33 +17,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float cameraFacingThresholdMax = 90f;
     [SerializeField] private float minIdleTurnSpeed = 1f;
     [SerializeField] private float maxIdleTurnSpeed = 5f;
-    [SerializeField] private bool useTurnInPlaceAnimations = true;
-    [SerializeField] private float turnAngleSmoothTime = 0.2f;
-    
-    [Header("Turn In Place Settings")]
-    [SerializeField] private float turnInPlaceRotationSpeed = 90f;
-    [SerializeField] private float turnAngleDeadzone = 15f;
-    [SerializeField] private float turnCompleteThreshold = 10f;
-    [SerializeField] private float turn180SpeedMultiplier = 1.2f;
-    
-    [Header("Turn Threshold Settings")]
-    [SerializeField] private float turnStartThreshold = 60f;
-    [SerializeField] private float turnStopThreshold = 55f;
-    [SerializeField] private float turn180StartThreshold = 135f;
-    [SerializeField] private float turn180StopThreshold = 130f;
-    
-    [Header("Turn Safety Settings")]
-    [SerializeField] private float maxRotationPerFrame = 360f; // degrees
-    [SerializeField] private float turnCompletionThreshold = 30f; // degrees - allow turn to finish if close
     
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     
-    // Core components
     private CharacterController characterController;
     private PlayerInputActions inputActions;
     
-    // Movement state
     private float currentSpeed;
     private float targetSpeed;
     private float speedVelocity;
@@ -51,32 +31,15 @@ public class PlayerController : MonoBehaviour
     private bool isSprinting;
     private Vector3 currentMoveDirection;
     
-    // Input state
     private float currentHorizontal;
     private float currentVertical;
     private float horizontalVelocity;
     private float verticalVelocity;
     
-    // Rotation state
-    private float currentTurnAngle;
-    private float targetTurnAngle;
-    private float turnAngleVelocity;
-    private bool isPerformingTurnInPlace;
+    private Quaternion currentRotation;
+    private Quaternion rotationVelocity;
+    private bool wasMoving;
     
-    // Debug rotation tracking
-    private Vector3 rotationBeforeTurn;
-    private Vector3 rotationAfterTurn;
-    private float totalRotationApplied;
-    private bool trackingRotation;
-    private string lastTurnDirection = "";
-    private float turnStartTime;
-    private float expectedRotationAmount;
-    
-    // Turn target tracking
-    private Vector3 lockedTurnTargetDirection;
-    private bool hasLockedTurnTarget;
-    
-    // Velocity tracking
     private Vector3 calculatedVelocity;
     private Vector3 previousPosition;
     
@@ -100,7 +63,10 @@ public class PlayerController : MonoBehaviour
     
     private void Update()
     {
-        ProcessFrame();
+        UpdateInputState();
+        UpdateMovementState();
+        ProcessMovementOrRotation();
+        UpdateVelocityTracking();
     }
     
     #endregion
@@ -131,6 +97,7 @@ public class PlayerController : MonoBehaviour
     private void InitializePreviousPosition()
     {
         previousPosition = transform.position;
+        currentRotation = transform.rotation;
     }
     
     #endregion
@@ -153,21 +120,9 @@ public class PlayerController : MonoBehaviour
         inputActions.OnCrouchToggle -= ToggleWalking;
     }
     
-    private void SetSprintingTrue() => isSprinting = true;
-    private void SetSprintingFalse() => isSprinting = false;
-    private void ToggleWalking() => isWalking = !isWalking;
-    
     #endregion
     
     #region Core Update Loop
-    
-    private void ProcessFrame()
-    {
-        UpdateInputState();
-        UpdateMovementState();
-        ProcessMovementOrRotation();
-        UpdateVelocityTracking();
-    }
     
     private void UpdateInputState()
     {
@@ -183,7 +138,9 @@ public class PlayerController : MonoBehaviour
     
     private void ProcessMovementOrRotation()
     {
-        if (ShouldProcessMovement())
+        bool isMoving = ShouldProcessMovement();
+        
+        if (isMoving)
         {
             ProcessMovement();
         }
@@ -192,6 +149,8 @@ public class PlayerController : MonoBehaviour
             ProcessIdleRotation();
             ClearMovementIfStopped();
         }
+        
+        wasMoving = isMoving;
     }
     
     private void UpdateVelocityTracking()
@@ -245,18 +204,18 @@ public class PlayerController : MonoBehaviour
         Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
         
         ApplyMovement(moveDirection);
-        ApplyMovementRotation(moveDirection);
         SetCurrentMoveDirection(moveDirection);
-        ResetTurnInPlace();
     }
     
     private Vector3 CalculateCameraRelativeDirection(Vector3 inputDirection)
     {
-        Transform cameraTransform = GetCameraTransform();
-        Vector3 cameraForward = GetFlattenedDirection(cameraTransform.forward);
-        Vector3 cameraRight = GetFlattenedDirection(cameraTransform.right);
+        if (ThirdPersonCamera.Instance == null)
+        {
+            Debug.LogWarning("PlayerController: ThirdPersonCamera instance not found");
+            return inputDirection;
+        }
         
-        return (cameraForward * inputDirection.z + cameraRight * inputDirection.x).normalized;
+        return ThirdPersonCamera.Instance.GetCameraRelativeDirection(inputDirection);
     }
     
     private void ApplyMovement(Vector3 direction)
@@ -265,11 +224,6 @@ public class PlayerController : MonoBehaviour
         characterController.Move(movement);
     }
     
-    private void ApplyMovementRotation(Vector3 moveDirection)
-    {
-        if (moveDirection.magnitude < INPUT_THRESHOLD) return;
-        transform.rotation = Quaternion.LookRotation(moveDirection);
-    }
     
     private void ClearMovementIfStopped()
     {
@@ -300,7 +254,7 @@ public class PlayerController : MonoBehaviour
     private float GetSpeedForCurrentState()
     {
         if (isWalking) return walkSpeed;
-        if (isSprinting) return sprintSpeed;
+        if (isSprinting && CanSprintInCurrentDirection()) return sprintSpeed;
         return runSpeed;
     }
     
@@ -324,112 +278,32 @@ public class PlayerController : MonoBehaviour
     
     private void ProcessIdleRotation()
     {
-        if (useTurnInPlaceAnimations)
-        {
-            ProcessTurnInPlaceRotation();
-        }
-        else
-        {
-            ProcessSmoothIdleRotation();
-        }
+        ProcessSmoothIdleRotation();
     }
     
-    private void ProcessTurnInPlaceRotation()
-    {
-        Vector3 cameraForward = GetCameraForwardDirection();
-        float angleDifference = CalculateSignedAngleDifference(cameraForward);
-        
-        if (Mathf.Abs(angleDifference) < turnCompleteThreshold)
-        {
-            CompleteTurn();
-        }
-        else
-        {
-            float calculatedTurnAngle = CalculateTurnAngle(angleDifference);
-            SetTargetTurnAngle(calculatedTurnAngle);
-            
-            if (ShouldPerformTurn())
-            {
-                PerformTurnRotation(cameraForward, angleDifference);
-            }
-        }
-        
-        UpdateCurrentTurnAngle();
-    }
     
     private void ProcessSmoothIdleRotation()
     {
         Vector3 cameraForward = GetCameraForwardDirection();
-        float angleDifference = CalculateUnsignedAngleDifference(cameraForward);
+        float angleDifference = Mathf.Abs(GetAngleDifferenceFromCamera());
         
         if (ShouldRotateTowardsCamera(angleDifference))
         {
             PerformSmoothRotationTowardsCamera(cameraForward, angleDifference);
         }
-        
-        SetTargetTurnAngle(0f);
-        UpdateCurrentTurnAngle();
     }
     
-    private void PerformTurnRotation(Vector3 cameraForward, float angleDifference)
-    {
-        if (!IsWithinTurnDeadzone(angleDifference))
-        {
-            if (IsTargetAngle180())
-            {
-                PerformLockedDirectionTurn();
-            }
-            else
-            {
-                PerformLockedDirectionTurn();
-            }
-        }
-        
-        MarkAsPerformingTurn();
-    }
     
-    private void PerformLockedDirectionTurn()
-    {
-        if (!hasLockedTurnTarget)
-        {
-            Debug.LogWarning("Trying to perform turn without locked target!");
-            return;
-        }
-        
-        // Rotate toward the locked target direction (not the camera)
-        Quaternion targetRotation = Quaternion.LookRotation(lockedTurnTargetDirection);
-        float rotationSpeed = IsTargetAngle180() ? 
-            turnInPlaceRotationSpeed * turn180SpeedMultiplier : 
-            turnInPlaceRotationSpeed;
-        
-        // Clamp rotation to prevent large jumps on low framerates
-        rotationSpeed = Mathf.Min(rotationSpeed, maxRotationPerFrame);
-        
-        transform.rotation = Quaternion.RotateTowards(
-            transform.rotation,
-            targetRotation,
-            rotationSpeed * Time.deltaTime
-        );
-        
-        // Check if we've reached the target direction
-        float angleToTarget = Vector3.Angle(transform.forward, lockedTurnTargetDirection);
-        if (angleToTarget < turnCompleteThreshold)
-        {
-            // Snap to exact target for precision
-            transform.rotation = targetRotation;
-            Debug.Log($"Turn reached target direction. Angle to target: {angleToTarget:F2}° - SNAPPING TO TARGET");
-        }
-    }
     
     private void PerformSmoothRotationTowardsCamera(Vector3 cameraForward, float angleDifference)
     {
         float rotationSpeed = CalculateRotationSpeed(angleDifference);
         Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
         
-        transform.rotation = Quaternion.Slerp(
+        transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRotation,
-            rotationSpeed * Time.deltaTime
+            rotationSpeed * 100f * Time.deltaTime
         );
     }
     
@@ -445,178 +319,40 @@ public class PlayerController : MonoBehaviour
     
     private Vector3 GetCameraForwardDirection()
     {
-        Transform cameraTransform = GetCameraTransform();
-        return GetFlattenedDirection(cameraTransform.forward);
+        if (ThirdPersonCamera.Instance == null) return transform.forward;
+        return ThirdPersonCamera.Instance.GetForwardDirection();
     }
     
-    private float CalculateSignedAngleDifference(Vector3 cameraForward)
+    private float GetAngleDifferenceFromCamera()
     {
-        Vector3 currentForward = transform.forward;
-        float angle = Vector3.Angle(currentForward, cameraForward);
-        
-        Vector3 cross = Vector3.Cross(currentForward, cameraForward);
-        if (cross.y < 0)
-        {
-            angle = -angle;
-        }
-        
-        return angle;
+        if (ThirdPersonCamera.Instance == null) return 0f;
+        return ThirdPersonCamera.Instance.GetSignedAngleFromPlayer(transform.forward);
     }
     
-    private float CalculateUnsignedAngleDifference(Vector3 cameraForward)
-    {
-        Vector3 currentForward = transform.forward;
-        return Vector3.Angle(currentForward, cameraForward);
-    }
-    
-    private float CalculateTurnAngle(float angleDifference)
-    {
-        float absAngle = Mathf.Abs(angleDifference);
-        float currentAbsTurnAngle = Mathf.Abs(targetTurnAngle);
-        
-        // Use hysteresis: different thresholds for starting vs stopping turns
-        float deadZoneThreshold = currentAbsTurnAngle > 0 ? turnStopThreshold : turnStartThreshold;
-        float turn180Threshold = currentAbsTurnAngle >= 180f ? turn180StopThreshold : turn180StartThreshold;
-        
-        // Dead zone: No turn within threshold
-        if (absAngle < deadZoneThreshold)
-        {
-            return 0f;
-        }
-        // 180° turn zone: Above 180 threshold
-        else if (absAngle >= turn180Threshold)
-        {
-            return angleDifference > 0 ? 180f : -180f;
-        }
-        // 90° turn zone: Between dead zone and 180 threshold
-        else
-        {
-            return angleDifference > 0 ? 90f : -90f;
-        }
-    }
     
     #endregion
     
     #region Rotation State Management
     
-    private void SetTargetTurnAngle(float angle) 
-    {
-        // Start rotation tracking when a new turn begins
-        if (targetTurnAngle == 0f && angle != 0f)
-        {
-            StartRotationTracking(angle);
-        }
-        
-        targetTurnAngle = angle;
-    }
     
-    private void StartRotationTracking(float turnAngle)
-    {
-        rotationBeforeTurn = transform.eulerAngles;
-        totalRotationApplied = 0f;
-        trackingRotation = true;
-        turnStartTime = Time.time;
-        expectedRotationAmount = turnAngle;
-        
-        // Lock the target direction when turn starts
-        CalculateAndLockTurnTarget(turnAngle);
-        
-        if (turnAngle > 0)
-            lastTurnDirection = turnAngle >= 180f ? "Right 180°" : "Right 90°";
-        else
-            lastTurnDirection = turnAngle <= -180f ? "Left 180°" : "Left 90°";
-        
-        Debug.Log($"Turn Started: {lastTurnDirection} | Before: {rotationBeforeTurn.y:F1}° | Target: {lockedTurnTargetDirection}");
-    }
     
-    private void CalculateAndLockTurnTarget(float turnAngle)
-    {
-        // Calculate the exact direction we should face after the turn
-        Vector3 currentForward = transform.forward;
-        Quaternion turnRotation = Quaternion.AngleAxis(turnAngle, Vector3.up);
-        lockedTurnTargetDirection = turnRotation * currentForward;
-        hasLockedTurnTarget = true;
-        
-        Debug.Log($"Locked Turn Target - Angle: {turnAngle}°, Direction: {lockedTurnTargetDirection}");
-    }
-    private void MarkAsPerformingTurn() => isPerformingTurnInPlace = true;
     
-    private void CompleteTurn()
-    {
-        // End rotation tracking when turn completes
-        if (trackingRotation)
-        {
-            EndRotationTracking();
-        }
-        
-        targetTurnAngle = 0f;
-        isPerformingTurnInPlace = false;
-    }
     
-    private void EndRotationTracking()
-    {
-        rotationAfterTurn = transform.eulerAngles;
-        float actualRotation = CalculateActualRotationDifference();
-        float turnDuration = Time.time - turnStartTime;
-        
-        trackingRotation = false;
-        hasLockedTurnTarget = false; // Clear the locked target
-        
-        Debug.Log($"Turn Completed: {lastTurnDirection} | After: {rotationAfterTurn.y:F1}° | " +
-                 $"Expected: {expectedRotationAmount:F1}° | Actual: {actualRotation:F1}° | " +
-                 $"Duration: {turnDuration:F2}s");
-    }
     
-    private float CalculateActualRotationDifference()
-    {
-        float beforeY = rotationBeforeTurn.y;
-        float afterY = rotationAfterTurn.y;
-        
-        // Handle 360° wraparound
-        float diff = afterY - beforeY;
-        
-        if (diff > 180f)
-            diff -= 360f;
-        else if (diff < -180f)
-            diff += 360f;
-            
-        return diff;
-    }
-    
-    private void ResetTurnInPlace()
-    {
-        if (!isPerformingTurnInPlace) return;
-        
-        // Allow turn to complete if it's close to finishing (smoother interruption)
-        float remainingTurnAngle = Mathf.Abs(currentTurnAngle - targetTurnAngle);
-        if (remainingTurnAngle < turnCompletionThreshold)
-        {
-            // Let the turn finish - don't interrupt it
-            return;
-        }
-        
-        // Otherwise, reset the turn normally
-        targetTurnAngle = 0f;
-        isPerformingTurnInPlace = false;
-        hasLockedTurnTarget = false; // Clear locked target when resetting
-    }
-    
-    private void UpdateCurrentTurnAngle()
-    {
-        currentTurnAngle = Mathf.SmoothDamp(
-            currentTurnAngle,
-            targetTurnAngle,
-            ref turnAngleVelocity,
-            turnAngleSmoothTime
-        );
-        
-        ClampToZero(ref currentTurnAngle, ref turnAngleVelocity);
-    }
-    
-    private bool ShouldPerformTurn() => Mathf.Abs(targetTurnAngle) > 0f;
-    private bool IsTargetAngle180() => Mathf.Abs(targetTurnAngle) >= 180f;
-    private bool IsWithinTurnDeadzone(float angle) => Mathf.Abs(angle) < turnAngleDeadzone;
     private bool ShouldRotateTowardsCamera(float angle) => angle > cameraFacingThresholdMin;
+    
+    private bool CanSprintInCurrentDirection()
+    {
+        if (!HasSignificantInput()) return false;
+        
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        if (moveDirection.magnitude < INPUT_THRESHOLD) return false;
+        
+        float angle = Vector3.Angle(transform.forward, moveDirection);
+        return angle <= 45f;
+    }
     
     #endregion
     
@@ -638,20 +374,12 @@ public class PlayerController : MonoBehaviour
     
     private Transform GetCameraTransform()
     {
-        // Primary: Use Camera.main if available
-        if (Camera.main != null) 
-            return Camera.main.transform;
-        
-        // Fallback 1: Find any active camera in scene
-        Camera fallbackCamera = FindObjectOfType<Camera>();
-        if (fallbackCamera != null)
+        if (ThirdPersonCamera.Instance != null)
         {
-            Debug.LogWarning("PlayerController: Camera.main not found, using fallback camera: " + fallbackCamera.name);
-            return fallbackCamera.transform;
+            return ThirdPersonCamera.Instance.GetCameraTransform();
         }
         
-        // Fallback 2: Use player transform as last resort
-        Debug.LogError("PlayerController: No camera found! Using player transform as camera reference.");
+        Debug.LogError("PlayerController: ThirdPersonCamera instance not found!");
         return transform;
     }
     
@@ -678,9 +406,16 @@ public class PlayerController : MonoBehaviour
     public float GetTargetSpeed() => targetSpeed;
     public float GetCurrentHorizontal() => currentHorizontal;
     public float GetCurrentVertical() => currentVertical;
-    public float GetCurrentTurnAngle() => currentTurnAngle;
     public bool IsWalking() => isWalking;
     public bool IsSprinting() => isSprinting;
+    public bool IsActuallySprinting() => isSprinting && CanSprintInCurrentDirection();
+    public float GetMovementSpeedTier()
+    {
+        if (!HasSignificantSpeed()) return 0f;
+        if (isWalking) return 1f;
+        if (isSprinting && CanSprintInCurrentDirection()) return 3f;
+        return 2f;
+    }
     
     #endregion
     
@@ -689,21 +424,20 @@ public class PlayerController : MonoBehaviour
     public float GetSpeedVelocity() => speedVelocity;
     public Vector3 GetCurrentMoveDirection() => currentMoveDirection;
     public Vector3 GetCalculatedVelocity() => calculatedVelocity;
-    public float GetTargetTurnAngle() => targetTurnAngle;
-    public bool IsPerformingTurnInPlace() => isPerformingTurnInPlace;
     public PlayerInputActions GetInputActions() => inputActions;
     
-    // Debug rotation tracking getters
-    public Vector3 GetRotationBeforeTurn() => rotationBeforeTurn;
-    public Vector3 GetRotationAfterTurn() => rotationAfterTurn;
-    public float GetTotalRotationApplied() => totalRotationApplied;
-    public bool IsTrackingRotation() => trackingRotation;
-    public string GetLastTurnDirection() => lastTurnDirection;
-    public float GetExpectedRotationAmount() => expectedRotationAmount;
-    public float GetTurnStartTime() => turnStartTime;
-    public Vector3 GetLockedTurnTarget() => lockedTurnTargetDirection;
-    public bool HasLockedTurnTarget() => hasLockedTurnTarget;
+    public Vector3 GetRotationBeforeTurn() => Vector3.zero;
+    public Vector3 GetRotationAfterTurn() => Vector3.zero;
+    public float GetTotalRotationApplied() => 0f;
+    public bool IsTrackingRotation() => false;
+    public string GetLastTurnDirection() => "";
+    public float GetExpectedRotationAmount() => 0f;
+    public float GetTurnStartTime() => 0f;
+    public Vector3 GetLockedTurnTarget() => Vector3.zero;
+    public bool HasLockedTurnTarget() => false;
     public Vector2 GetLookInput() => inputActions.LookValue;
-
+    private void SetSprintingTrue() => isSprinting = true;
+    private void SetSprintingFalse() => isSprinting = false;
+    private void ToggleWalking() => isWalking = !isWalking;
     #endregion
 }

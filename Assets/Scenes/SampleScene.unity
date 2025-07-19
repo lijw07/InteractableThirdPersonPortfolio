@@ -761,6 +761,14 @@ MonoBehaviour:
   distance: 5
   mouseSensitivity: 10
   heightOffset: 1.5
+  collisionOffset: 0.2
+  collisionLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  minVerticalAngle: -30
+  maxVerticalAngle: 60
+  positionSmoothSpeed: 12
+  rotationSmoothSpeed: 15
 --- !u!43 &382971684
 Mesh:
   m_ObjectHideFlags: 0
