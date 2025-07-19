@@ -103,17 +103,28 @@ public class DebugRenderer
     
     private void DrawMovementDirection()
     {
-        Vector3 currentDirection = controller.GetCurrentMoveDirection();
-        if (currentDirection == Vector3.zero) return;
-        
-        Gizmos.color = Color.yellow;
-        
+        Vector3 rawDirection = controller.GetRawMoveDirection();
+        Vector3 smoothDirection = controller.GetSmoothedMoveDirection();
+
         Vector3 startPos = GetGizmoStartPosition();
-        Vector3 endPos = startPos + currentDirection * GIZMO_LINE_LENGTH;
-        
-        Gizmos.DrawLine(startPos, endPos);
-        DrawArrowHead(endPos, currentDirection);
+
+        if (rawDirection != Vector3.zero)
+        {
+            Gizmos.color = Color.red;
+            Vector3 rawEnd = startPos + rawDirection.normalized * GIZMO_LINE_LENGTH;
+            Gizmos.DrawLine(startPos, rawEnd);
+            DrawArrowHead(rawEnd, rawDirection);
+        }
+
+        if (smoothDirection != Vector3.zero)
+        {
+            Gizmos.color = Color.green;
+            Vector3 smoothEnd = startPos + smoothDirection.normalized * GIZMO_LINE_LENGTH;
+            Gizmos.DrawLine(startPos, smoothEnd);
+            DrawArrowHead(smoothEnd, smoothDirection);
+        }
     }
+
     
     private void DrawActualVelocity()
     {

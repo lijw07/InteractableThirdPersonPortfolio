@@ -30,10 +30,11 @@ public class PlayerController : MonoBehaviour
     private float horizontalVelocity;
     private float verticalVelocity;
     
-    private bool wasMoving;
-    
     private Vector3 calculatedVelocity;
     private Vector3 previousPosition;
+    
+    private Vector3 smoothMoveDirection;
+    private Vector3 moveDirectionVelocity;
     
     #region Unity Lifecycle
     
@@ -139,8 +140,6 @@ public class PlayerController : MonoBehaviour
         {
             ClearMovementIfStopped();
         }
-        
-        wasMoving = isMoving;
     }
     
     private void UpdateVelocityTracking()
@@ -194,7 +193,8 @@ public class PlayerController : MonoBehaviour
         Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
         
         ApplyMovement(moveDirection);
-        SetCurrentMoveDirection(moveDirection);
+        smoothMoveDirection = Vector3.SmoothDamp(smoothMoveDirection, moveDirection, ref moveDirectionVelocity, 0.1f);
+        SetCurrentMoveDirection(smoothMoveDirection);
     }
     
     private Vector3 CalculateCameraRelativeDirection(Vector3 inputDirection)
@@ -347,5 +347,8 @@ public class PlayerController : MonoBehaviour
     private void SetSprintingTrue() => isSprinting = true;
     private void SetSprintingFalse() => isSprinting = false;
     private void ToggleWalking() => isWalking = !isWalking;
+    
+    public Vector3 GetRawMoveDirection() => currentMoveDirection;
+    public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
     #endregion
 }

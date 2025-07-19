@@ -54,7 +54,7 @@ public class ThirdPersonCamera : MonoBehaviour
         InitializeCursor();
     }
     
-    private void Update()
+    private void LateUpdate()
     {
         UpdateDynamicTarget();
         
