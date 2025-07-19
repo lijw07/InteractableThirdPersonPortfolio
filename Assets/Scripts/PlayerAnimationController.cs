@@ -38,11 +38,9 @@ public class PlayerAnimationController : MonoBehaviour
         float currentSpeed = playerController.GetCurrentSpeed();
         float horizontal = playerController.GetCurrentHorizontal();
         float vertical = playerController.GetCurrentVertical();
-        float movementTier = playerController.GetMovementSpeedTier();
 
         animator.SetFloat(MovementSpeed, currentSpeed);
         animator.SetFloat(Horizontal, horizontal);
         animator.SetFloat(Vertical, vertical);
-        animator.SetFloat(MovementTier, movementTier);
     }
 }

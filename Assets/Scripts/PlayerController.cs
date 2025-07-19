@@ -12,12 +12,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float decelerationTime = 0.2f;
     [SerializeField] private float inputSmoothTime = 0.1f;
     
-    [Header("Camera Facing Settings")]
-    [SerializeField] private float cameraFacingThresholdMin = 45f;
-    [SerializeField] private float cameraFacingThresholdMax = 90f;
-    [SerializeField] private float minIdleTurnSpeed = 1f;
-    [SerializeField] private float maxIdleTurnSpeed = 5f;
-    
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     
@@ -36,8 +30,6 @@ public class PlayerController : MonoBehaviour
     private float horizontalVelocity;
     private float verticalVelocity;
     
-    private Quaternion currentRotation;
-    private Quaternion rotationVelocity;
     private bool wasMoving;
     
     private Vector3 calculatedVelocity;
@@ -97,7 +89,6 @@ public class PlayerController : MonoBehaviour
     private void InitializePreviousPosition()
     {
         previousPosition = transform.position;
-        currentRotation = transform.rotation;
     }
     
     #endregion
@@ -146,7 +137,6 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            ProcessIdleRotation();
             ClearMovementIfStopped();
         }
         
@@ -254,6 +244,12 @@ public class PlayerController : MonoBehaviour
     private float GetSpeedForCurrentState()
     {
         if (isWalking) return walkSpeed;
+        
+        if (IsMovingSideways())
+        {
+            return walkSpeed;
+        }
+        
         if (isSprinting && CanSprintInCurrentDirection()) return sprintSpeed;
         return runSpeed;
     }
@@ -274,72 +270,7 @@ public class PlayerController : MonoBehaviour
     
     #endregion
     
-    #region Rotation Processing
-    
-    private void ProcessIdleRotation()
-    {
-        ProcessSmoothIdleRotation();
-    }
-    
-    
-    private void ProcessSmoothIdleRotation()
-    {
-        Vector3 cameraForward = GetCameraForwardDirection();
-        float angleDifference = Mathf.Abs(GetAngleDifferenceFromCamera());
-        
-        if (ShouldRotateTowardsCamera(angleDifference))
-        {
-            PerformSmoothRotationTowardsCamera(cameraForward, angleDifference);
-        }
-    }
-    
-    
-    
-    private void PerformSmoothRotationTowardsCamera(Vector3 cameraForward, float angleDifference)
-    {
-        float rotationSpeed = CalculateRotationSpeed(angleDifference);
-        Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
-        
-        transform.rotation = Quaternion.RotateTowards(
-            transform.rotation,
-            targetRotation,
-            rotationSpeed * 100f * Time.deltaTime
-        );
-    }
-    
-    private float CalculateRotationSpeed(float angleDifference)
-    {
-        float normalizedAngle = Mathf.InverseLerp(cameraFacingThresholdMin, cameraFacingThresholdMax, angleDifference);
-        return Mathf.Lerp(minIdleTurnSpeed, maxIdleTurnSpeed, normalizedAngle);
-    }
-    
-    #endregion
-    
-    #region Angle Calculations
-    
-    private Vector3 GetCameraForwardDirection()
-    {
-        if (ThirdPersonCamera.Instance == null) return transform.forward;
-        return ThirdPersonCamera.Instance.GetForwardDirection();
-    }
-    
-    private float GetAngleDifferenceFromCamera()
-    {
-        if (ThirdPersonCamera.Instance == null) return 0f;
-        return ThirdPersonCamera.Instance.GetSignedAngleFromPlayer(transform.forward);
-    }
-    
-    
-    #endregion
-    
     #region Rotation State Management
-    
-    
-    
-    
-    
-    
-    private bool ShouldRotateTowardsCamera(float angle) => angle > cameraFacingThresholdMin;
     
     private bool CanSprintInCurrentDirection()
     {
@@ -351,7 +282,20 @@ public class PlayerController : MonoBehaviour
         if (moveDirection.magnitude < INPUT_THRESHOLD) return false;
         
         float angle = Vector3.Angle(transform.forward, moveDirection);
-        return angle <= 45f;
+        return angle <= 60f;
+    }
+    
+    private bool IsMovingSideways()
+    {
+        if (!HasSignificantInput()) return false;
+        
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        if (moveDirection.magnitude < INPUT_THRESHOLD) return false;
+        
+        float angle = Vector3.Angle(transform.forward, moveDirection);
+        return angle > 60f && angle < 120f;
     }
     
     #endregion
@@ -372,23 +316,6 @@ public class PlayerController : MonoBehaviour
     
     #region Utility Methods
     
-    private Transform GetCameraTransform()
-    {
-        if (ThirdPersonCamera.Instance != null)
-        {
-            return ThirdPersonCamera.Instance.GetCameraTransform();
-        }
-        
-        Debug.LogError("PlayerController: ThirdPersonCamera instance not found!");
-        return transform;
-    }
-    
-    private Vector3 GetFlattenedDirection(Vector3 direction)
-    {
-        direction.y = 0f;
-        return direction.normalized;
-    }
-    
     private void ClampToZero(ref float value, ref float velocity)
     {
         if (Mathf.Abs(value) < ZERO_THRESHOLD)
@@ -408,14 +335,6 @@ public class PlayerController : MonoBehaviour
     public float GetCurrentVertical() => currentVertical;
     public bool IsWalking() => isWalking;
     public bool IsSprinting() => isSprinting;
-    public bool IsActuallySprinting() => isSprinting && CanSprintInCurrentDirection();
-    public float GetMovementSpeedTier()
-    {
-        if (!HasSignificantSpeed()) return 0f;
-        if (isWalking) return 1f;
-        if (isSprinting && CanSprintInCurrentDirection()) return 3f;
-        return 2f;
-    }
     
     #endregion
     
@@ -425,17 +344,6 @@ public class PlayerController : MonoBehaviour
     public Vector3 GetCurrentMoveDirection() => currentMoveDirection;
     public Vector3 GetCalculatedVelocity() => calculatedVelocity;
     public PlayerInputActions GetInputActions() => inputActions;
-    
-    public Vector3 GetRotationBeforeTurn() => Vector3.zero;
-    public Vector3 GetRotationAfterTurn() => Vector3.zero;
-    public float GetTotalRotationApplied() => 0f;
-    public bool IsTrackingRotation() => false;
-    public string GetLastTurnDirection() => "";
-    public float GetExpectedRotationAmount() => 0f;
-    public float GetTurnStartTime() => 0f;
-    public Vector3 GetLockedTurnTarget() => Vector3.zero;
-    public bool HasLockedTurnTarget() => false;
-    public Vector2 GetLookInput() => inputActions.LookValue;
     private void SetSprintingTrue() => isSprinting = true;
     private void SetSprintingFalse() => isSprinting = false;
     private void ToggleWalking() => isWalking = !isWalking;

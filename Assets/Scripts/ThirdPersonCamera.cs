@@ -24,17 +24,12 @@ public class ThirdPersonCamera : MonoBehaviour
     [Header("Camera Settings")]
     [SerializeField] private Transform target;
     [SerializeField] private float distance = 5f;
-    [SerializeField] private float mouseSensitivity = 100f;
     [SerializeField] private float heightOffset = 1.5f;
     
     [Header("Collision Settings")]
     [SerializeField] private float collisionOffset = 0.2f;
     [SerializeField] private LayerMask collisionLayers = -1;
     [SerializeField] private float minCollisionDistance = 1f;
-    
-    [Header("Rotation Limits")]
-    [SerializeField] private float minVerticalAngle = -30f;
-    [SerializeField] private float maxVerticalAngle = 60f;
     
     
     #endregion
@@ -64,8 +59,6 @@ public class ThirdPersonCamera : MonoBehaviour
         UpdateDynamicTarget();
         
         if (!IsTargetValid()) return;
-        
-        UpdateRotation();
         UpdatePosition();
     }
     
@@ -159,14 +152,6 @@ public class ThirdPersonCamera : MonoBehaviour
         }
     }
     
-    private void UpdateRotation()
-    {
-        if (!IsPlayerControllerValid()) return;
-        
-        Vector2 mouseInput = playerController.GetLookInput();
-        ApplyRotationInput(mouseInput);
-    }
-    
     private void UpdatePosition()
     {
         Quaternion desiredRotation = Quaternion.Euler(currentY, currentX, 0);
@@ -175,26 +160,6 @@ public class ThirdPersonCamera : MonoBehaviour
         
         transform.position = collisionCheckedPosition;
         transform.rotation = desiredRotation;
-    }
-    
-    #endregion
-    
-    #region Rotation Handling
-    
-    private void ApplyRotationInput(Vector2 input)
-    {
-        currentX += input.x * mouseSensitivity * Time.deltaTime;
-        currentY -= input.y * mouseSensitivity * Time.deltaTime;
-        
-        NormalizeRotationAngles();
-    }
-    
-    private void NormalizeRotationAngles()
-    {
-        currentX = currentX % 360f;
-        if (currentX < 0) currentX += 360f;
-        
-        currentY = Mathf.Clamp(currentY, minVerticalAngle, maxVerticalAngle);
     }
     
     #endregion
@@ -283,15 +248,6 @@ public class ThirdPersonCamera : MonoBehaviour
     }
     
     /// <summary>
-    /// Gets the current smoothed distance (for debugging)
-    /// </summary>
-    public float GetCurrentDistance()
-    {
-        if (target == null) return distance;
-        return Vector3.Distance(transform.position, target.position + Vector3.up * heightOffset);
-    }
-    
-    /// <summary>
     /// Gets the current target transform
     /// </summary>
     public Transform GetCurrentTarget()
@@ -301,42 +257,11 @@ public class ThirdPersonCamera : MonoBehaviour
     
     #endregion
     
-    #region Target Management
-    
-    public void SetTarget(Transform newTarget)
-    {
-        if (newTarget == null)
-        {
-            Debug.LogWarning("ThirdPersonCamera: Attempted to set null target");
-            return;
-        }
-        
-        target = newTarget;
-        
-        Transform lookAtChild = newTarget.Find("LookAt");
-        if (lookAtChild != null)
-        {
-            target = lookAtChild;
-            Debug.Log($"ThirdPersonCamera: Using LookAt child as camera target");
-        }
-        else
-        {
-            Debug.Log($"ThirdPersonCamera: Using {newTarget.name} as camera target");
-        }
-    }
-    
-    #endregion
-    
     #region Validation Helpers
     
     private bool IsTargetValid()
     {
         return target != null;
-    }
-    
-    private bool IsPlayerControllerValid()
-    {
-        return playerController != null;
     }
     
     #endregion
