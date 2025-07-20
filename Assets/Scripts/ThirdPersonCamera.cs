@@ -31,6 +31,9 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField] private LayerMask collisionLayers = -1;
     [SerializeField] private float minCollisionDistance = 1f;
     
+    [SerializeField] private float mouseSensitivity = 3f;
+    [SerializeField] private float minY = -20f;
+    [SerializeField] private float maxY = 60f;
     
     #endregion
     
@@ -40,7 +43,6 @@ public class ThirdPersonCamera : MonoBehaviour
     private float currentY = 20f;
     private PlayerController playerController;
     private CharacterManageController characterManager;
-    
     
     #endregion
     
@@ -59,6 +61,7 @@ public class ThirdPersonCamera : MonoBehaviour
         UpdateDynamicTarget();
         
         if (!IsTargetValid()) return;
+        HandleCameraRotation();
         UpdatePosition();
     }
     
@@ -160,6 +163,17 @@ public class ThirdPersonCamera : MonoBehaviour
         
         transform.position = collisionCheckedPosition;
         transform.rotation = desiredRotation;
+    }
+    
+    private void HandleCameraRotation()
+    {
+        if (!IsTargetValid()) return;
+
+        Vector2 mouseInput = new Vector2(Input.GetAxis("Mouse X"), -Input.GetAxis("Mouse Y"));
+
+        currentX += mouseInput.x * mouseSensitivity;
+        currentY += mouseInput.y * mouseSensitivity;
+        currentY = Mathf.Clamp(currentY, minY, maxY);
     }
     
     #endregion

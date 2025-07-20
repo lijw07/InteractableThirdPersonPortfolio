@@ -92,6 +92,7 @@ public class DebugRenderer
         DrawActualVelocity();
         DrawSpeedIndicator();
         DrawCameraDebugInfo();
+        DrawCameraOrbitDebug();
         UpdateCameraTracking();
     }
     
@@ -124,7 +125,6 @@ public class DebugRenderer
             DrawArrowHead(smoothEnd, smoothDirection);
         }
     }
-
     
     private void DrawActualVelocity()
     {
@@ -240,6 +240,29 @@ public class DebugRenderer
         
         lastCameraPosition = currentPos;
         lastCameraRotation = currentRot;
+    }
+    
+    private void DrawCameraOrbitDebug()
+    {
+        if (ThirdPersonCamera.Instance == null || controller == null) return;
+
+        Transform cameraTransform = ThirdPersonCamera.Instance.GetCameraTransform();
+        Transform playerTransform = controller.transform;
+
+        Vector3 cameraPos = cameraTransform.position;
+        Vector3 playerPos = playerTransform.position + Vector3.up * 1.5f;
+        
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(cameraPos, cameraPos + cameraTransform.forward * 2f);
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(playerPos, playerPos + playerTransform.forward * 2f);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(cameraPos, playerPos);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(playerPos, 0.15f);
     }
 }
 

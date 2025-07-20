@@ -12,6 +12,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float decelerationTime = 0.2f;
     [SerializeField] private float inputSmoothTime = 0.1f;
     
+    [Header("Rotation Settings")]
+    [SerializeField] private float turnSpeed = 10f;
+    [SerializeField] private bool useMouseRotation = true; // New setting to control rotation behavior
+    
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     
@@ -140,6 +144,8 @@ public class PlayerController : MonoBehaviour
         {
             ClearMovementIfStopped();
         }
+        
+        HandleRotation();
     }
     
     private void UpdateVelocityTracking()
@@ -214,13 +220,56 @@ public class PlayerController : MonoBehaviour
         characterController.Move(movement);
     }
     
-    
     private void ClearMovementIfStopped()
     {
         if (!HasSignificantSpeed())
         {
             ClearMoveDirection();
         }
+    }
+    
+    private void HandleRotation()
+    {
+        if (!useMouseRotation)
+        {
+            if (ShouldProcessMovement())
+            {
+                Vector3 inputDirection = GetWorldSpaceInputDirection();
+                Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+                RotateTowardsMovement(moveDirection);
+            }
+            return;
+        }
+        
+        if (isSprinting && ShouldProcessMovement())
+        {
+            Vector3 inputDirection = GetWorldSpaceInputDirection();
+            Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+            RotateTowardsMovement(moveDirection);
+        }
+        else
+        {
+            RotateWithCamera();
+        }
+    }
+    
+    private void RotateWithCamera()
+    {
+        if (ThirdPersonCamera.Instance == null) return;
+        
+        Vector3 cameraForward = ThirdPersonCamera.Instance.GetForwardDirection();
+        if (cameraForward.sqrMagnitude < 0.001f) return;
+        
+        Quaternion targetRotation = Quaternion.LookRotation(cameraForward, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+    }
+    
+    private void RotateTowardsMovement(Vector3 direction)
+    {
+        if (direction.sqrMagnitude < 0.001f) return;
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
     }
     
     private void SetCurrentMoveDirection(Vector3 direction) => currentMoveDirection = direction;
@@ -296,6 +345,28 @@ public class PlayerController : MonoBehaviour
         
         float angle = Vector3.Angle(transform.forward, moveDirection);
         return angle > 60f && angle < 120f;
+    }
+
+    private float GetMovementDirectionDot()
+    {
+        if (!HasSignificantInput()) return 0f;
+        
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
+        
+        return Vector3.Dot(transform.forward, moveDirection.normalized);
+    }
+    
+    public bool IsMovingBackward()
+    {
+        return GetMovementDirectionDot() < -0.5f;
+    }
+    
+    public bool IsMovingForward()
+    {
+        return GetMovementDirectionDot() > 0.5f;
     }
     
     #endregion
