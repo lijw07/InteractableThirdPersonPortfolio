@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,11 +14,6 @@ public class PlayerDebugComponent : MonoBehaviour
     
     private void Awake()
     {
-        InitializeDebugComponent();
-    }
-    
-    private void InitializeDebugComponent()
-    {
         playerController = GetComponent<PlayerController>();
         
         if (playerController == null)
@@ -31,20 +27,9 @@ public class PlayerDebugComponent : MonoBehaviour
         debugGUI = new DebugGUI(playerController, showDebugGUI);
     }
     
-    private void OnGUI()
-    {
-        debugGUI?.DrawIfEnabled();
-    }
-    
-    private void OnDrawGizmos()
-    {
-        debugRenderer?.DrawGizmos();
-    }
-    
-    private void OnDrawGizmosSelected()
-    {
-        debugRenderer?.DrawGizmosSelected();
-    }
+    private void OnGUI() => debugGUI?.DrawIfEnabled();
+    private void OnDrawGizmos() => debugRenderer?.DrawGizmos();
+    private void OnDrawGizmosSelected() => debugRenderer?.DrawGizmosSelected();
     
     public void ToggleDebugGUI()
     {
@@ -59,8 +44,6 @@ public class PlayerDebugComponent : MonoBehaviour
     }
 }
 
-#region Debug Classes
-
 public class DebugRenderer
 {
     private readonly PlayerController controller;
@@ -70,10 +53,11 @@ public class DebugRenderer
     private const float GIZMO_LINE_LENGTH = 3f;
     private const float ARROW_SIZE = 0.5f;
     private const float COORDINATE_AXIS_LENGTH = 2f;
+    private const float SNAP_THRESHOLD = 0.5f;
+    private const float ROTATION_SNAP_THRESHOLD = 10f;
     
     private Vector3 lastCameraPosition;
     private Quaternion lastCameraRotation;
-    private float lastCameraDistance;
     private bool cameraSnappingDetected;
     
     public DebugRenderer(PlayerController controller, bool isEnabled)
@@ -106,24 +90,20 @@ public class DebugRenderer
     {
         Vector3 rawDirection = controller.GetRawMoveDirection();
         Vector3 smoothDirection = controller.GetSmoothedMoveDirection();
-
         Vector3 startPos = GetGizmoStartPosition();
 
-        if (rawDirection != Vector3.zero)
-        {
-            Gizmos.color = Color.red;
-            Vector3 rawEnd = startPos + rawDirection.normalized * GIZMO_LINE_LENGTH;
-            Gizmos.DrawLine(startPos, rawEnd);
-            DrawArrowHead(rawEnd, rawDirection);
-        }
-
-        if (smoothDirection != Vector3.zero)
-        {
-            Gizmos.color = Color.green;
-            Vector3 smoothEnd = startPos + smoothDirection.normalized * GIZMO_LINE_LENGTH;
-            Gizmos.DrawLine(startPos, smoothEnd);
-            DrawArrowHead(smoothEnd, smoothDirection);
-        }
+        DrawDirectionLine(startPos, rawDirection, Color.red);
+        DrawDirectionLine(startPos, smoothDirection, Color.green);
+    }
+    
+    private void DrawDirectionLine(Vector3 startPos, Vector3 direction, Color color)
+    {
+        if (direction == Vector3.zero) return;
+        
+        Gizmos.color = color;
+        Vector3 endPos = startPos + direction.normalized * GIZMO_LINE_LENGTH;
+        Gizmos.DrawLine(startPos, endPos);
+        DrawArrowHead(endPos, direction);
     }
     
     private void DrawActualVelocity()
@@ -132,7 +112,6 @@ public class DebugRenderer
         if (calculatedVelocity == Vector3.zero) return;
         
         Gizmos.color = Color.cyan;
-        
         Vector3 startPos = GetGizmoStartPosition();
         Vector3 normalizedVelocity = calculatedVelocity.normalized;
         Vector3 endPos = startPos + normalizedVelocity * GIZMO_LINE_LENGTH;
@@ -152,7 +131,6 @@ public class DebugRenderer
     private void DrawCoordinateSystem()
     {
         Vector3 pos = GetCoordinateSystemPosition();
-        
         DrawAxis(pos, Vector3.right, Color.red, "X");
         DrawAxis(pos, Vector3.up, Color.green, "Y");
         DrawAxis(pos, Vector3.forward, Color.blue, "Z");
@@ -170,30 +148,6 @@ public class DebugRenderer
         #endif
     }
     
-    private Vector3 GetGizmoStartPosition()
-    {
-        return controller.transform.position + Vector3.up * GIZMO_HEIGHT_OFFSET;
-    }
-    
-    private Vector3 GetCoordinateSystemPosition()
-    {
-        return controller.transform.position + Vector3.up * COORDINATE_AXIS_LENGTH;
-    }
-    
-    private void DrawArrowHead(Vector3 endPos, Vector3 direction)
-    {
-        Vector3 arrowRight = CalculateArrowDirection(direction, 160f);
-        Vector3 arrowLeft = CalculateArrowDirection(direction, -160f);
-        
-        Gizmos.DrawLine(endPos, endPos + arrowRight * ARROW_SIZE);
-        Gizmos.DrawLine(endPos, endPos + arrowLeft * ARROW_SIZE);
-    }
-    
-    private Vector3 CalculateArrowDirection(Vector3 direction, float angle)
-    {
-        return Quaternion.LookRotation(direction) * Quaternion.Euler(0, angle, 0) * Vector3.forward;
-    }
-    
     private void DrawCameraDebugInfo()
     {
         if (ThirdPersonCamera.Instance == null) return;
@@ -201,20 +155,26 @@ public class DebugRenderer
         Transform cameraTransform = ThirdPersonCamera.Instance.GetCameraTransform();
         if (cameraTransform == null) return;
         
-        Gizmos.color = Color.magenta;
         Vector3 cameraPos = cameraTransform.position;
         Vector3 cameraForward = ThirdPersonCamera.Instance.GetForwardDirection();
-        Gizmos.DrawLine(cameraPos, cameraPos + cameraForward * 2f);
-        
-        Gizmos.color = Color.yellow;
         Vector3 targetPos = controller.transform.position + Vector3.up * 1.5f;
-        Gizmos.DrawLine(cameraPos, targetPos);
+        
+        DrawCameraLines(cameraPos, cameraForward, targetPos);
         
         if (cameraSnappingDetected)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(cameraPos, 0.5f);
         }
+    }
+    
+    private void DrawCameraLines(Vector3 cameraPos, Vector3 cameraForward, Vector3 targetPos)
+    {
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(cameraPos, cameraPos + cameraForward * 2f);
+        
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(cameraPos, targetPos);
     }
     
     private void UpdateCameraTracking()
@@ -232,10 +192,7 @@ public class DebugRenderer
             float positionDelta = Vector3.Distance(currentPos, lastCameraPosition);
             float rotationDelta = Quaternion.Angle(currentRot, lastCameraRotation);
             
-            const float SNAP_THRESHOLD = 0.5f;
-            const float ROTATION_SNAP_THRESHOLD = 10f;
-            
-            cameraSnappingDetected = (positionDelta > SNAP_THRESHOLD) || (rotationDelta > ROTATION_SNAP_THRESHOLD);
+            cameraSnappingDetected = positionDelta > SNAP_THRESHOLD || rotationDelta > ROTATION_SNAP_THRESHOLD;
         }
         
         lastCameraPosition = currentPos;
@@ -252,17 +209,39 @@ public class DebugRenderer
         Vector3 cameraPos = cameraTransform.position;
         Vector3 playerPos = playerTransform.position + Vector3.up * 1.5f;
         
+        DrawOrbitLines(cameraPos, cameraTransform.forward, playerPos, playerTransform.forward);
+    }
+    
+    private void DrawOrbitLines(Vector3 cameraPos, Vector3 cameraForward, Vector3 playerPos, Vector3 playerForward)
+    {
         Gizmos.color = Color.magenta;
-        Gizmos.DrawLine(cameraPos, cameraPos + cameraTransform.forward * 2f);
+        Gizmos.DrawLine(cameraPos, cameraPos + cameraForward * 2f);
 
         Gizmos.color = Color.green;
-        Gizmos.DrawLine(playerPos, playerPos + playerTransform.forward * 2f);
+        Gizmos.DrawLine(playerPos, playerPos + playerForward * 2f);
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(cameraPos, playerPos);
 
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(playerPos, 0.15f);
+    }
+    
+    private Vector3 GetGizmoStartPosition() => controller.transform.position + Vector3.up * GIZMO_HEIGHT_OFFSET;
+    private Vector3 GetCoordinateSystemPosition() => controller.transform.position + Vector3.up * COORDINATE_AXIS_LENGTH;
+    
+    private void DrawArrowHead(Vector3 endPos, Vector3 direction)
+    {
+        Vector3 arrowRight = CalculateArrowDirection(direction, 160f);
+        Vector3 arrowLeft = CalculateArrowDirection(direction, -160f);
+        
+        Gizmos.DrawLine(endPos, endPos + arrowRight * ARROW_SIZE);
+        Gizmos.DrawLine(endPos, endPos + arrowLeft * ARROW_SIZE);
+    }
+    
+    private Vector3 CalculateArrowDirection(Vector3 direction, float angle)
+    {
+        return Quaternion.LookRotation(direction) * Quaternion.Euler(0, angle, 0) * Vector3.forward;
     }
 }
 
@@ -273,16 +252,12 @@ public class DebugGUI
     
     private Vector3 lastCameraPosition;
     private float lastCameraDistance;
-    private Queue<float> cameraPositionDeltas = new Queue<float>();
-    private Queue<float> cameraDistanceDeltas = new Queue<float>();
-    private const int DELTA_HISTORY_SIZE = 60;
-    
-    private Vector2 scrollPosition;
     
     private const int WINDOW_WIDTH = 300;
     private const int WINDOW_HEIGHT = 500;
     private const int MARGIN = 10;
     private const int CONTENT_MARGIN = 20;
+    private const float SNAP_THRESHOLD = 0.1f;
     
     public DebugGUI(PlayerController controller, bool isEnabled)
     {
@@ -300,7 +275,7 @@ public class DebugGUI
         {
             DrawDebugWindow();
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
             Debug.LogError($"PlayerDebugComponent GUI Error: {e.Message}");
         }
@@ -342,12 +317,10 @@ public class DebugGUI
             
             if (inputActions == null)
             {
-                DrawLabel("Input actions null!");
-                DrawLabel("--");
-                DrawLabel("--");
-                DrawLabel("--");
+                DrawMultipleLabels("Input actions null!", "--", "--", "--");
                 return;
             }
+            
             Vector2 rawInput = inputActions.MoveValue;
             DrawLabelValue("Raw Input", VectorToString(rawInput));
             DrawLabelValue("Input Magnitude", rawInput.magnitude.ToString("F2"));
@@ -362,7 +335,6 @@ public class DebugGUI
         {
             float angleDifference = GetAngleDifferenceFromCamera();
             DrawLabelValue("Angle to Camera", angleDifference.ToString("F2") + "°");
-            
             DrawLabelValue("Player Y Rotation", controller.transform.eulerAngles.y.ToString("F1") + "°");
             
             if (ThirdPersonCamera.Instance != null)
@@ -372,8 +344,6 @@ public class DebugGUI
             }
         });
     }
-    
-    
     
     private void DrawVelocityInfo()
     {
@@ -389,62 +359,58 @@ public class DebugGUI
     {
         DrawSection("Camera Debug", () =>
         {
-            bool hasCamera = ThirdPersonCamera.Instance != null;
-            
-            if (!hasCamera)
+            if (!HasValidCamera())
             {
-                DrawLabel("ThirdPersonCamera not found!");
-                DrawLabel("--");
-                DrawLabel("--");
-                DrawLabel("--");
+                DrawMultipleLabels("ThirdPersonCamera not found!", "--", "--", "--");
                 return;
             }
             
             Transform cameraTransform = ThirdPersonCamera.Instance.GetCameraTransform();
             if (cameraTransform == null)
             {
-                DrawLabel("Camera transform null!");
-                DrawLabel("--");
-                DrawLabel("--");
-                DrawLabel("--");
+                DrawMultipleLabels("Camera transform null!", "--", "--", "--");
                 return;
             }
             
-            Vector3 currentCameraPos = cameraTransform.position;
-            Vector3 targetPos = controller.transform.position;
-            float currentDistance = Vector3.Distance(currentCameraPos, targetPos);
-            
-            DrawLabelValue("Distance", currentDistance.ToString("F2"));
-            DrawLabelValue("Target", ThirdPersonCamera.Instance.GetCurrentTarget()?.name ?? "null");
-            
-            if (lastCameraPosition != Vector3.zero)
-            {
-                float positionDelta = Vector3.Distance(currentCameraPos, lastCameraPosition);
-                float distanceDelta = Mathf.Abs(currentDistance - lastCameraDistance);
-                
-                DrawLabelValue("Pos Delta", positionDelta.ToString("F4"));
-                DrawLabelValue("Dist Delta", distanceDelta.ToString("F4"));
-                
-                const float SNAP_THRESHOLD = 0.1f;
-                if (positionDelta > SNAP_THRESHOLD || distanceDelta > SNAP_THRESHOLD)
-                {
-                    DrawLabel($"SNAP! Δ{positionDelta:F3}");
-                }
-                else
-                {
-                    DrawLabel("Camera OK");
-                }
-            }
-            else
-            {
-                DrawLabel("--");
-                DrawLabel("--");
-                DrawLabel("Initializing...");
-            }
-            
-            lastCameraPosition = currentCameraPos;
-            lastCameraDistance = currentDistance;
+            DrawCameraInfo(cameraTransform);
         });
+    }
+    
+    private void DrawCameraInfo(Transform cameraTransform)
+    {
+        Vector3 currentCameraPos = cameraTransform.position;
+        Vector3 targetPos = controller.transform.position;
+        float currentDistance = Vector3.Distance(currentCameraPos, targetPos);
+        
+        DrawLabelValue("Distance", currentDistance.ToString("F2"));
+        DrawLabelValue("Target", ThirdPersonCamera.Instance.GetCurrentTarget()?.name ?? "null");
+        
+        if (lastCameraPosition != Vector3.zero)
+        {
+            DrawCameraDeltas(currentCameraPos, currentDistance);
+        }
+        else
+        {
+            DrawMultipleLabels("--", "--", "Initializing...");
+        }
+        
+        lastCameraPosition = currentCameraPos;
+        lastCameraDistance = currentDistance;
+    }
+    
+    private void DrawCameraDeltas(Vector3 currentCameraPos, float currentDistance)
+    {
+        float positionDelta = Vector3.Distance(currentCameraPos, lastCameraPosition);
+        float distanceDelta = Mathf.Abs(currentDistance - lastCameraDistance);
+        
+        DrawLabelValue("Pos Delta", positionDelta.ToString("F4"));
+        DrawLabelValue("Dist Delta", distanceDelta.ToString("F4"));
+        
+        string statusMessage = (positionDelta > SNAP_THRESHOLD || distanceDelta > SNAP_THRESHOLD) 
+            ? $"SNAP! Δ{positionDelta:F3}" 
+            : "Camera OK";
+        
+        DrawLabel(statusMessage);
     }
     
     private void DrawInstructions()
@@ -455,22 +421,16 @@ public class DebugGUI
         });
     }
     
-    private void DrawSection(string title, System.Action drawContent)
+    private void DrawSection(string title, Action drawContent)
     {
         GUILayout.Label(title, CreateHeaderStyle());
         drawContent();
         GUILayout.Space(8);
     }
     
-    private void DrawLabelValue(string label, string value)
-    {
-        GUILayout.Label($"{label}: {value}", CreateLabelStyle());
-    }
-    
-    private void DrawLabel(string text)
-    {
-        GUILayout.Label(text, CreateLabelStyle());
-    }
+    private void DrawLabelValue(string label, string value) => GUILayout.Label($"{label}: {value}", CreateLabelStyle());
+    private void DrawLabel(string text) => GUILayout.Label(text, CreateLabelStyle());
+    private void DrawMultipleLabels(params string[] labels) => Array.ForEach(labels, DrawLabel);
     
     private string GetMovementModeString()
     {
@@ -480,21 +440,16 @@ public class DebugGUI
         return "Running";
     }
     
-    private string VectorToString(Vector3 vector)
-    {
-        return $"({vector.x:F2}, {vector.y:F2}, {vector.z:F2})";
-    }
-    
-    private string VectorToString(Vector2 vector)
-    {
-        return $"({vector.x:F2}, {vector.y:F2})";
-    }
+    private string VectorToString(Vector3 vector) => $"({vector.x:F2}, {vector.y:F2}, {vector.z:F2})";
+    private string VectorToString(Vector2 vector) => $"({vector.x:F2}, {vector.y:F2})";
     
     private float GetAngleDifferenceFromCamera()
     {
         if (ThirdPersonCamera.Instance == null) return 0f;
         return ThirdPersonCamera.Instance.GetSignedAngleFromPlayer(controller.transform.forward);
     }
+    
+    private bool HasValidCamera() => ThirdPersonCamera.Instance != null;
     
     private GUIStyle CreateLabelStyle()
     {
@@ -515,5 +470,3 @@ public class DebugGUI
         };
     }
 }
-
-#endregion

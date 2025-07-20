@@ -2,72 +2,53 @@ using UnityEngine;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
-    #region Singleton
-    
     private static ThirdPersonCamera instance;
     public static ThirdPersonCamera Instance
     {
         get
         {
             if (instance == null)
-            {
                 instance = FindFirstObjectByType<ThirdPersonCamera>();
-            }
             return instance;
         }
     }
-    
-    #endregion
-    
-    #region Serialized Fields
     
     [Header("Camera Settings")]
     [SerializeField] private Transform target;
     [SerializeField] private float distance = 5f;
     [SerializeField] private float heightOffset = 1.5f;
+    [SerializeField] private float mouseSensitivity = 3f;
+    [SerializeField] private float minY = -20f;
+    [SerializeField] private float maxY = 60f;
     
     [Header("Collision Settings")]
     [SerializeField] private float collisionOffset = 0.2f;
     [SerializeField] private LayerMask collisionLayers = -1;
     [SerializeField] private float minCollisionDistance = 1f;
     
-    [SerializeField] private float mouseSensitivity = 3f;
-    [SerializeField] private float minY = -20f;
-    [SerializeField] private float maxY = 60f;
-    
-    #endregion
-    
-    #region Private Fields
-    
     private float currentX = 0f;
     private float currentY = 20f;
     private PlayerController playerController;
     private CharacterManageController characterManager;
-    
-    #endregion
-    
-    #region Unity Lifecycle
     
     private void Awake()
     {
         InitializeSingleton();
         InitializeComponents();
         InitializeTarget();
-        InitializeCursor();
+        SetCursorState();
     }
     
     private void LateUpdate()
     {
         UpdateDynamicTarget();
         
-        if (!IsTargetValid()) return;
-        HandleCameraRotation();
-        UpdatePosition();
+        if (IsTargetValid())
+        {
+            HandleCameraRotation();
+            UpdatePosition();
+        }
     }
-    
-    #endregion
-    
-    #region Initialization
     
     private void InitializeSingleton()
     {
@@ -88,71 +69,55 @@ public class ThirdPersonCamera : MonoBehaviour
         characterManager = FindFirstObjectByType<CharacterManageController>();
         
         if (playerController == null)
-        {
             Debug.LogError("ThirdPersonCamera: PlayerController not found!");
-        }
         
         if (collisionLayers == -1)
-        {
             collisionLayers = ~(1 << LayerMask.NameToLayer("UI"));
-        }
     }
     
     private void InitializeTarget()
     {
-        if (target == null)
-        {
-            GameObject playerController = GameObject.Find("PlayerController");
-            if (playerController != null)
-            {
-                Transform lookAtChild = playerController.transform.Find("LookAt");
-                if (lookAtChild != null)
-                {
-                    target = lookAtChild;
-                }
-                else
-                {
-                    target = playerController.transform;
-                }
-            }
-            else
-            {
-                GameObject lookAtObject = GameObject.Find("LookAt");
-                if (lookAtObject != null)
-                {
-                    target = lookAtObject.transform;
-                }
-            }
-        }
+        if (target != null) return;
+        
+        target = FindTarget("PlayerController") ?? FindTarget("LookAt");
     }
     
-    private void InitializeCursor()
+    private Transform FindTarget(string objectName)
+    {
+        GameObject targetObject = GameObject.Find(objectName);
+        if (targetObject == null) return null;
+        
+        if (objectName == "PlayerController")
+        {
+            Transform lookAtChild = targetObject.transform.Find("LookAt");
+            return lookAtChild != null ? lookAtChild : targetObject.transform;
+        }
+        
+        return targetObject.transform;
+    }
+    
+    private void SetCursorState()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
     
-    #endregion
-    
-    #region Core Camera Updates
-    
     private void UpdateDynamicTarget()
     {
-        if (!characterManager) return;
+        if (characterManager == null) return;
         
         GameObject activeCharacter = characterManager.GetCurrentCharacter();
-        if (activeCharacter != null)
-        {
-            Transform lookAtChild = activeCharacter.transform.Find("LookAt");
-            if (lookAtChild != null && lookAtChild != target)
-            {
-                target = lookAtChild;
-            }
-            else if (lookAtChild == null && activeCharacter.transform != target)
-            {
-                target = activeCharacter.transform;
-            }
-        }
+        if (activeCharacter == null) return;
+        
+        Transform newTarget = GetCharacterTarget(activeCharacter);
+        if (newTarget != target)
+            target = newTarget;
+    }
+    
+    private Transform GetCharacterTarget(GameObject character)
+    {
+        Transform lookAtChild = character.transform.Find("LookAt");
+        return lookAtChild != null ? lookAtChild : character.transform;
     }
     
     private void UpdatePosition()
@@ -167,18 +132,12 @@ public class ThirdPersonCamera : MonoBehaviour
     
     private void HandleCameraRotation()
     {
-        if (!IsTargetValid()) return;
-
         Vector2 mouseInput = new Vector2(Input.GetAxis("Mouse X"), -Input.GetAxis("Mouse Y"));
 
         currentX += mouseInput.x * mouseSensitivity;
         currentY += mouseInput.y * mouseSensitivity;
         currentY = Mathf.Clamp(currentY, minY, maxY);
     }
-    
-    #endregion
-    
-    #region Position Calculation
     
     private Vector3 CalculateDesiredPosition(Quaternion rotation)
     {
@@ -193,24 +152,15 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 direction = desiredPosition - targetPosition;
         float desiredDistance = direction.magnitude;
         
-        RaycastHit hit;
-        if (Physics.SphereCast(targetPosition, collisionOffset, direction.normalized, out hit, desiredDistance, collisionLayers))
+        if (Physics.SphereCast(targetPosition, collisionOffset, direction.normalized, out RaycastHit hit, desiredDistance, collisionLayers))
         {
-            float hitDistance = hit.distance - collisionOffset;
-            hitDistance = Mathf.Clamp(hitDistance, minCollisionDistance, desiredDistance);
+            float hitDistance = Mathf.Clamp(hit.distance - collisionOffset, minCollisionDistance, desiredDistance);
             return targetPosition + direction.normalized * hitDistance;
         }
         
         return desiredPosition;
     }
     
-    #endregion
-    
-    #region Public Camera Utilities
-    
-    /// <summary>
-    /// Gets the camera's forward direction on the XZ plane (Y=0)
-    /// </summary>
     public Vector3 GetForwardDirection()
     {
         Vector3 forward = transform.forward;
@@ -218,9 +168,6 @@ public class ThirdPersonCamera : MonoBehaviour
         return forward.normalized;
     }
     
-    /// <summary>
-    /// Gets the camera's right direction on the XZ plane (Y=0)
-    /// </summary>
     public Vector3 GetRightDirection()
     {
         Vector3 right = transform.right;
@@ -228,9 +175,6 @@ public class ThirdPersonCamera : MonoBehaviour
         return right.normalized;
     }
     
-    /// <summary>
-    /// Transforms input direction to camera-relative direction
-    /// </summary>
     public Vector3 GetCameraRelativeDirection(Vector3 inputDirection)
     {
         Vector3 forward = GetForwardDirection();
@@ -239,9 +183,6 @@ public class ThirdPersonCamera : MonoBehaviour
         return (forward * inputDirection.z + right * inputDirection.x).normalized;
     }
     
-    /// <summary>
-    /// Calculates the signed angle between player forward and camera forward
-    /// </summary>
     public float GetSignedAngleFromPlayer(Vector3 playerForward)
     {
         Vector3 cameraForward = GetForwardDirection();
@@ -253,30 +194,8 @@ public class ThirdPersonCamera : MonoBehaviour
         return angle;
     }
     
-    /// <summary>
-    /// Gets the current camera transform
-    /// </summary>
-    public Transform GetCameraTransform()
-    {
-        return transform;
-    }
+    public Transform GetCameraTransform() => transform;
+    public Transform GetCurrentTarget() => target;
     
-    /// <summary>
-    /// Gets the current target transform
-    /// </summary>
-    public Transform GetCurrentTarget()
-    {
-        return target;
-    }
-    
-    #endregion
-    
-    #region Validation Helpers
-    
-    private bool IsTargetValid()
-    {
-        return target != null;
-    }
-    
-    #endregion
+    private bool IsTargetValid() => target != null;
 }
