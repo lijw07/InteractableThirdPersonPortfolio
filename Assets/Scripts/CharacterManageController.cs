@@ -7,7 +7,7 @@ public class CharacterManageController : MonoBehaviour
     [Header("Character Settings")]
     [SerializeField] private float switchCooldown = 0f;
     
-    private List<GameObject> characters = new List<GameObject>();
+    private List<GameObject> characters = new();
     private int currentCharacterIndex = 0;
     private GameObject currentCharacter;
     private float lastSwitchTime = 0f;
@@ -36,7 +36,6 @@ public class CharacterManageController : MonoBehaviour
         
         if (characters.Count > 0)
         {
-            // Select a random character instead of using starting index
             int randomIndex = Random.Range(0, characters.Count);
             currentCharacterIndex = randomIndex;
             Debug.Log($"[CharacterManageController] Selecting random character index: {randomIndex} of {characters.Count}");
@@ -47,7 +46,6 @@ public class CharacterManageController : MonoBehaviour
             Debug.LogError("[CharacterManageController] No child characters found with CharacterController components!");
         }
         
-        // Subscribe to input events
         if (inputActions != null)
         {
             inputActions.OnNextAction += OnSwitchCharacter;
@@ -56,7 +54,6 @@ public class CharacterManageController : MonoBehaviour
     
     void OnDestroy()
     {
-        // Unsubscribe from events
         if (inputActions != null)
         {
             inputActions.OnNextAction -= OnSwitchCharacter;
@@ -81,7 +78,6 @@ public class CharacterManageController : MonoBehaviour
     {
         if (Time.time - lastSwitchTime > switchCooldown)
         {
-            // Check if Alt key is currently held
             if (Keyboard.current != null && (Keyboard.current.altKey.isPressed || Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed))
             {
                 SwitchToPreviousCharacter();
@@ -104,7 +100,6 @@ public class CharacterManageController : MonoBehaviour
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);
         
-        // Ensure new character is at local origin
         currentCharacter.transform.localPosition = Vector3.zero;
         currentCharacter.transform.localRotation = Quaternion.identity;
         
@@ -121,7 +116,6 @@ public class CharacterManageController : MonoBehaviour
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);
         
-        // Ensure new character is at local origin
         currentCharacter.transform.localPosition = Vector3.zero;
         currentCharacter.transform.localRotation = Quaternion.identity;
         
@@ -146,27 +140,6 @@ public class CharacterManageController : MonoBehaviour
         if (controller == null)
         {
             Debug.LogError($"Character {currentCharacter.name} is missing CharacterController!");
-        }
-        
-        if (playerController != null)
-        {
-            playerController.SetCurrentCharacter(currentCharacter);
-        }
-        
-        if (animationController != null)
-        {
-            animationController.SetCurrentCharacter(currentCharacter);
-        }
-        
-        var cameraFollow = Camera.main.GetComponent<ThirdPersonCamera>();
-        if (cameraFollow != null)
-        {
-            Debug.Log($"[CharacterManageController] Setting camera target to: {transform.name} (parent controller)");
-            cameraFollow.SetTarget(transform);
-        }
-        else
-        {
-            Debug.LogError("[CharacterManageController] ThirdPersonCamera not found on Main Camera!");
         }
     }
     

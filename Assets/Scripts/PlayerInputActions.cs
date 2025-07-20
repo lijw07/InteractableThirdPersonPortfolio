@@ -5,12 +5,10 @@ public class PlayerInputActions : MonoBehaviour, InputSystem_Actions.IPlayerActi
 {
     private InputSystem_Actions inputActions;
     
-    // Input values accessible by other components
     public Vector2 MoveValue { get; private set; }
     public Vector2 LookValue { get; private set; }
     public bool JumpPressed { get; private set; }
     public bool SprintHeld { get; private set; }
-    public bool AttackPressed { get; private set; }
     public bool InteractPressed { get; private set; }
     public bool CrouchPressed { get; private set; }
     public float ScrollValue { get; private set; }

@@ -2,124 +2,45 @@ using UnityEngine;
 
 public class PlayerAnimationController : MonoBehaviour
 {
-    [Header("Animation Settings")]
-    [SerializeField] private float animationDeadzone = 0.1f;
-    [SerializeField] private float movementSpeedTransitionRate = 2f;
+    private static readonly int MovementSpeed = Animator.StringToHash("MovementSpeed");
+    private static readonly int Horizontal = Animator.StringToHash("Horizontal");
+    private static readonly int Vertical = Animator.StringToHash("Vertical");
+    private static readonly int MovementTier = Animator.StringToHash("MovementTier");
     
     private PlayerController playerController;
-    private Animator currentAnimator;
-    private GameObject currentCharacter;
-    private float currentMovementSpeed = 0f;
+    private Animator animator;
     
-    
-    void Awake()
+    private void Awake()
     {
         playerController = GetComponent<PlayerController>();
+        animator = GetComponentInChildren<Animator>();
         
         if (playerController == null)
         {
-            Debug.LogError($"No PlayerController or EnhancedPlayerController found on {gameObject.name}");
+            Debug.LogError("PlayerController component missing!");
+        }
+        
+        if (animator == null)
+        {
+            Debug.LogError("Animator component missing in children!");
         }
     }
     
-    public void SetCurrentCharacter(GameObject character)
+    private void Update()
     {
-        currentCharacter = character;
-        currentAnimator = character.GetComponentInChildren<Animator>();
+        if (!playerController || !animator) return;
         
-        if (currentAnimator == null)
-        {
-            Debug.LogWarning($"No Animator found on character {character.name} or its children");
-        }
+        UpdateAnimation();
     }
     
-    void Update()
+    private void UpdateAnimation()
     {
-        if (currentAnimator == null || playerController == null) return;
-        
-        UpdateAnimationParameters();
-    }
-    
-    
-    void UpdateAnimationParameters()
-    {
-        // Use enhanced controller if available, otherwise fall back to regular controller
-        Vector2 movementVector;
-        bool isGrounded;
-        float verticalVel;
-        bool isSprinting;
-        bool isWalking;
-        float currentSpeed;
-        float walkSpeed;
-        float runSpeed;
-        
-        if (playerController != null)
-        {
-            movementVector = playerController.GetMovementVector();
-            isGrounded = playerController.IsGrounded();
-            verticalVel = playerController.GetVerticalVelocity();
-            isSprinting = playerController.IsSprinting();
-            isWalking = playerController.IsWalking();
-            currentSpeed = playerController.GetCurrentSpeed();
-            walkSpeed = playerController.GetWalkSpeed();
-            runSpeed = playerController.GetRunSpeed();
-        }
-        else
-        {
-            return; // No controller found
-        }
-        
-        // Set discrete state values for MovementSpeed
-        // 0 = idle, 0.5 = walk, 1 = run, 1.5 = sprint
-        float targetMovementSpeed = 0f;
-        
-        if (currentSpeed > 0.1f)
-        {
-            if (isWalking)
-            {
-                targetMovementSpeed = 0.5f;  // Walk state
-            }
-            else if (isSprinting)
-            {
-                targetMovementSpeed = 1.5f;  // Sprint state
-            }
-            else
-            {
-                targetMovementSpeed = 1f;    // Run state
-            }
-        }
-        // else targetMovementSpeed stays 0 for idle
-        
-        // Smoothly transition to the target movement speed
-        currentMovementSpeed = Mathf.MoveTowards(currentMovementSpeed, targetMovementSpeed, movementSpeedTransitionRate * Time.deltaTime);
-        
-        // Apply deadzone to movement vector
-        float horizontal = movementVector.x;
-        float vertical = movementVector.y;
-        
-        if (Mathf.Abs(horizontal) < animationDeadzone)
-        {
-            horizontal = 0f;
-        }
-        
-        if (Mathf.Abs(vertical) < animationDeadzone)
-        {
-            vertical = 0f;
-        }
-        
-        // Set animator parameters with smoothed movement speed
-        currentAnimator.SetFloat("MovementSpeed", currentMovementSpeed);
-        currentAnimator.SetFloat("Horizontal", horizontal);
-        currentAnimator.SetFloat("Vertical", vertical);
-        currentAnimator.SetBool("IsGrounded", isGrounded);
-        currentAnimator.SetFloat("VerticalVelocity", verticalVel);
-    }
-    
-    public void TriggerJump()
-    {
-        if (currentAnimator != null)
-        {
-            currentAnimator.SetTrigger("Jump");
-        }
+        float currentSpeed = playerController.GetCurrentSpeed();
+        float horizontal = playerController.GetCurrentHorizontal();
+        float vertical = playerController.GetCurrentVertical();
+
+        animator.SetFloat(MovementSpeed, currentSpeed);
+        animator.SetFloat(Horizontal, horizontal);
+        animator.SetFloat(Vertical, vertical);
     }
 }

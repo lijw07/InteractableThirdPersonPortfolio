@@ -1,259 +1,329 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    #region Player Movement Settings
-
     [Header("Movement Settings")]
-    [SerializeField] private float walkSpeed = 5f;
-    [SerializeField] private float runSpeed = 10f;
-    [SerializeField] private float turnSmoothTime = 0.1f;
+    [SerializeField] private float walkSpeed = 3f;
+    [SerializeField] private float runSpeed = 4.5f;
+    [SerializeField] private float sprintSpeed = 6f;
     
     [Header("Acceleration Settings")]
-    [SerializeField] private float accelerationTime = 0.25f;
-    [SerializeField] private float decelerationTime = 0.15f;
-    [SerializeField] private float sprintAccelerationTime = 0.4f;
-    [SerializeField] private float sprintDecelerationTime = 0.3f;
-    
-    [Header("Input Smoothing")]
+    [SerializeField] private float accelerationTime = 0.3f;
+    [SerializeField] private float decelerationTime = 0.2f;
     [SerializeField] private float inputSmoothTime = 0.1f;
-    [SerializeField] private float deadZone = 0.1f;
     
-    [Header("Turn Enhancement")]
-    [SerializeField] private float turnSpeedMultiplier = 1.5f;
-    [SerializeField] private float stationaryTurnSpeed = 180f;
-    [SerializeField] private AnimationCurve turnSpeedCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    [Header("Rotation Settings")]
+    [SerializeField] private float turnSpeed = 10f;
+    [SerializeField] private bool useMouseRotation = true;
     
-    [Header("Physics")]
-    [SerializeField] private float gravity = -9.81f;
+    private const float ZERO_THRESHOLD = 0.001f;
+    private const float INPUT_THRESHOLD = 0.1f;
+    private const float SPRINT_ANGLE_THRESHOLD = 60f;
+    private const float SIDEWAYS_MIN_ANGLE = 60f;
+    private const float SIDEWAYS_MAX_ANGLE = 120f;
+    private const float MOVEMENT_DIRECTION_THRESHOLD = 0.5f;
     
-    private CharacterController currentController;
-    private GameObject currentCharacter;
-    private Transform cameraTransform;
-    private float turnSmoothVelocity;
+    private CharacterController characterController;
     private PlayerInputActions inputActions;
     
-    private Vector2 moveInput;
-    private Vector2 smoothedMoveInput;
-    private Vector2 inputVelocity;
-    private bool isSprinting;
-    private bool isWalking = false;
-    
     private float currentSpeed;
+    private float targetSpeed;
     private float speedVelocity;
+    private bool isWalking;
+    private bool isSprinting;
+    private Vector3 currentMoveDirection;
+    
+    private float currentHorizontal;
+    private float currentVertical;
+    private float horizontalVelocity;
     private float verticalVelocity;
-
-    #endregion
     
-    void Awake()
+    private Vector3 calculatedVelocity;
+    private Vector3 previousPosition;
+    
+    private Vector3 smoothMoveDirection;
+    private Vector3 moveDirectionVelocity;
+    
+    private void Awake()
     {
+        InitializeComponents();
+    }
+    
+    private void Start()
+    {
+        SubscribeToInputEvents();
+        previousPosition = transform.position;
+    }
+    
+    private void OnDestroy()
+    {
+        UnsubscribeFromInputEvents();
+    }
+    
+    private void Update()
+    {
+        UpdateInputState();
+        UpdateMovementState();
+        ProcessMovementAndRotation();
+        UpdateVelocityTracking();
+    }
+    
+    private void InitializeComponents()
+    {
+        characterController = GetComponent<CharacterController>();
         inputActions = GetComponent<PlayerInputActions>();
+        
+        if (characterController == null)
+            Debug.LogError("PlayerController: CharacterController component missing!");
+        
         if (inputActions == null)
-        {
             inputActions = gameObject.AddComponent<PlayerInputActions>();
-        }
     }
     
-    void Start()
+    private void SubscribeToInputEvents()
     {
-        GameObject mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-        if (mainCamera != null)
-        {
-            cameraTransform = mainCamera.transform;
-        }
+        inputActions.OnSprintStart += () => isSprinting = true;
+        inputActions.OnSprintEnd += () => isSprinting = false;
+        inputActions.OnCrouchToggle += () => isWalking = !isWalking;
+    }
+    
+    private void UnsubscribeFromInputEvents()
+    {
+        if (inputActions == null) return;
         
-        // Subscribe to input events
-        if (inputActions != null)
-        {
-            inputActions.OnSprintStart += () => isSprinting = true;
-            inputActions.OnSprintEnd += () => isSprinting = false;
-            inputActions.OnCrouchToggle += () => isWalking = !isWalking;
-        }
+        inputActions.OnSprintStart -= () => isSprinting = true;
+        inputActions.OnSprintEnd -= () => isSprinting = false;
+        inputActions.OnCrouchToggle -= () => isWalking = !isWalking;
     }
     
-    void OnDestroy()
+    private void UpdateInputState()
     {
-        // Unsubscribe from events
-        if (inputActions != null)
-        {
-            inputActions.OnSprintStart -= () => isSprinting = true;
-            inputActions.OnSprintEnd -= () => isSprinting = false;
-            inputActions.OnCrouchToggle -= () => isWalking = !isWalking;
-        }
+        Vector2 rawInput = inputActions.MoveValue;
+        SmoothInputValues(rawInput);
     }
     
-    public void SetCurrentCharacter(GameObject character)
+    private void UpdateMovementState()
     {
-        currentCharacter = character;
-        currentController = character.GetComponent<CharacterController>();
+        CalculateTargetSpeed();
+        SmoothCurrentSpeed();
+    }
+    
+    private void ProcessMovementAndRotation()
+    {
+        bool isMoving = ShouldProcessMovement();
         
-        if (currentController == null)
+        if (isMoving)
         {
-            Debug.LogError($"Character {character.name} is missing CharacterController!");
-        }
-    }
-    
-    void UpdateInput()
-    {
-        // Get move input from PlayerInputActions
-        Vector2 input = inputActions.MoveValue;
-        
-        if (input.magnitude < deadZone)
-        {
-            moveInput = Vector2.zero;
+            ProcessMovement();
         }
         else
         {
-            moveInput = input.normalized * ((input.magnitude - deadZone) / (1 - deadZone));
+            ClearMovementIfStopped();
+        }
+        
+        HandleRotation();
+    }
+    
+    private void UpdateVelocityTracking()
+    {
+        calculatedVelocity = (transform.position - previousPosition) / Time.deltaTime;
+        previousPosition = transform.position;
+    }
+    
+    private void SmoothInputValues(Vector2 rawInput)
+    {
+        currentHorizontal = Mathf.SmoothDamp(currentHorizontal, rawInput.x, ref horizontalVelocity, inputSmoothTime);
+        currentVertical = Mathf.SmoothDamp(currentVertical, rawInput.y, ref verticalVelocity, inputSmoothTime);
+        
+        ClampToZero(ref currentHorizontal, ref horizontalVelocity);
+        ClampToZero(ref currentVertical, ref verticalVelocity);
+    }
+    
+    private bool ShouldProcessMovement()
+    {
+        return HasSignificantInput() && HasSignificantSpeed();
+    }
+    
+    private void ProcessMovement()
+    {
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        ApplyMovement(moveDirection);
+        smoothMoveDirection = Vector3.SmoothDamp(smoothMoveDirection, moveDirection, ref moveDirectionVelocity, 0.1f);
+        currentMoveDirection = smoothMoveDirection;
+    }
+    
+    private void ClearMovementIfStopped()
+    {
+        if (!HasSignificantSpeed())
+        {
+            currentMoveDirection = Vector3.zero;
         }
     }
     
-    void Update()
+    private void HandleRotation()
     {
-        if (currentController == null || currentCharacter == null) return;
-        
-        UpdateInput();
-        UpdateInputSmoothing();
-        HandleMovement();
-        
-        verticalVelocity += gravity * Time.deltaTime;
-        
-        if (currentController.isGrounded && verticalVelocity < 0)
+        if (!useMouseRotation)
         {
-            verticalVelocity = -2f;
+            if (ShouldProcessMovement())
+            {
+                Vector3 inputDirection = GetWorldSpaceInputDirection();
+                Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+                RotateTowardsMovement(moveDirection);
+            }
+            return;
         }
-    }
-    
-    void UpdateInputSmoothing()
-    {
-        // Instant response when starting from idle
-        if (smoothedMoveInput.magnitude < 0.1f && moveInput.magnitude > deadZone)
+        
+        if (isSprinting && ShouldProcessMovement())
         {
-            smoothedMoveInput = moveInput;
-            inputVelocity = Vector2.zero;
+            Vector3 inputDirection = GetWorldSpaceInputDirection();
+            Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+            RotateTowardsMovement(moveDirection);
         }
         else
         {
-            smoothedMoveInput = Vector2.SmoothDamp(smoothedMoveInput, moveInput, ref inputVelocity, inputSmoothTime);
+            RotateWithCamera();
+        }
+    }
+    
+    private Vector3 CalculateCameraRelativeDirection(Vector3 inputDirection)
+    {
+        if (ThirdPersonCamera.Instance == null)
+        {
+            Debug.LogWarning("PlayerController: ThirdPersonCamera instance not found");
+            return inputDirection;
         }
         
-        if (smoothedMoveInput.magnitude < deadZone)
-        {
-            smoothedMoveInput = Vector2.zero;
-            inputVelocity = Vector2.zero;
-        }
+        return ThirdPersonCamera.Instance.GetCameraRelativeDirection(inputDirection);
     }
     
-    void HandleMovement()
+    private void ApplyMovement(Vector3 direction)
     {
-        Vector3 direction = new Vector3(smoothedMoveInput.x, 0f, smoothedMoveInput.y).normalized;
+        Vector3 movement = direction * currentSpeed * Time.deltaTime;
+        characterController.Move(movement);
+    }
+    
+    private void RotateWithCamera()
+    {
+        if (ThirdPersonCamera.Instance == null) return;
+        
+        Vector3 cameraForward = ThirdPersonCamera.Instance.GetForwardDirection();
+        if (cameraForward.sqrMagnitude < ZERO_THRESHOLD) return;
+        
+        Quaternion targetRotation = Quaternion.LookRotation(cameraForward, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+    }
+    
+    private void RotateTowardsMovement(Vector3 direction)
+    {
+        if (direction.sqrMagnitude < ZERO_THRESHOLD) return;
 
-        if (direction.magnitude >= 0.1f && cameraTransform != null)
+        Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+    }
+    
+    private void CalculateTargetSpeed()
+    {
+        if (!HasSignificantInput())
         {
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
-            float angleDifference = Mathf.DeltaAngle(transform.eulerAngles.y, targetAngle);
-
-            bool allowRotation = isSprinting || smoothedMoveInput.y > 0.1f;
-
-            float turnSpeed = turnSmoothTime;
-            if (currentSpeed < 0.1f)
-            {
-                turnSpeed = stationaryTurnSpeed * Time.deltaTime;
-
-                if (allowRotation)
-                {
-                    transform.rotation = Quaternion.Euler(
-                        0f,
-                        transform.eulerAngles.y + Mathf.Sign(angleDifference) * Mathf.Min(Mathf.Abs(angleDifference), turnSpeed),
-                        0f
-                    );
-                }
-            }
-            else
-            {
-                if (allowRotation)
-                {
-                    float speedFactor = turnSpeedCurve.Evaluate(currentSpeed / runSpeed);
-                    turnSpeed = turnSmoothTime / (speedFactor * turnSpeedMultiplier);
-                    float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSpeed);
-                    transform.rotation = Quaternion.Euler(0f, angle, 0f);
-                }
-            }
-
-            // Calculate target speed
-            float targetSpeed;
-            if (isSprinting && !isWalking)
-            {
-                targetSpeed = runSpeed;
-            }
-            else if (isWalking)
-            {
-                targetSpeed = walkSpeed;
-            }
-            else
-            {
-                targetSpeed = runSpeed;
-            }
-
-            // Instant start from idle, smooth acceleration otherwise
-            if (currentSpeed < 0.1f && smoothedMoveInput.magnitude > deadZone)
-            {
-                currentSpeed = walkSpeed * smoothedMoveInput.magnitude;
-                speedVelocity = 0f;
-            }
-            else
-            {
-                float accelTime = isSprinting ? sprintAccelerationTime : accelerationTime;
-                currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed * smoothedMoveInput.magnitude, ref speedVelocity, accelTime);
-            }
-
-            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-            Vector3 movement = moveDir.normalized * currentSpeed * Time.deltaTime;
-            movement.y = verticalVelocity * Time.deltaTime;
-
-            Vector3 childPosBefore = currentCharacter.transform.position;
-            currentController.Move(movement);
-            Vector3 childPosAfter = currentCharacter.transform.position;
-            Vector3 deltaMovement = childPosAfter - childPosBefore;
-            transform.position += deltaMovement;
-
-            currentCharacter.transform.localPosition = Vector3.zero;
-            currentCharacter.transform.rotation = transform.rotation;
+            targetSpeed = 0f;
+            return;
         }
-        else
+        
+        targetSpeed = GetSpeedForCurrentState();
+    }
+    
+    private float GetSpeedForCurrentState()
+    {
+        if (isWalking || IsMovingSideways()) return walkSpeed;
+        if (isSprinting && CanSprintInCurrentDirection()) return sprintSpeed;
+        return runSpeed;
+    }
+    
+    private void SmoothCurrentSpeed()
+    {
+        float smoothTime = targetSpeed > currentSpeed ? accelerationTime : decelerationTime;
+        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedVelocity, smoothTime);
+        ClampToZero(ref currentSpeed, ref speedVelocity);
+    }
+    
+    private bool CanSprintInCurrentDirection()
+    {
+        return HasSignificantInput() && GetAngleToMovementDirection() <= SPRINT_ANGLE_THRESHOLD;
+    }
+    
+    private bool IsMovingSideways()
+    {
+        if (!HasSignificantInput()) return false;
+        
+        float angle = GetAngleToMovementDirection();
+        return angle > SIDEWAYS_MIN_ANGLE && angle < SIDEWAYS_MAX_ANGLE;
+    }
+    
+    private float GetAngleToMovementDirection()
+    {
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
+        
+        return Vector3.Angle(transform.forward, moveDirection);
+    }
+    
+    private float GetMovementDirectionDot()
+    {
+        if (!HasSignificantInput()) return 0f;
+        
+        Vector3 inputDirection = GetWorldSpaceInputDirection();
+        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+        
+        if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
+        
+        return Vector3.Dot(transform.forward, moveDirection.normalized);
+    }
+    
+    private bool HasSignificantInput()
+    {
+        return GetInputMagnitude() > INPUT_THRESHOLD;
+    }
+    
+    private float GetInputMagnitude()
+    {
+        return new Vector2(currentHorizontal, currentVertical).magnitude;
+    }
+    
+    private Vector3 GetWorldSpaceInputDirection()
+    {
+        return new Vector3(currentHorizontal, 0f, currentVertical).normalized;
+    }
+    
+    private bool HasSignificantSpeed()
+    {
+        return currentSpeed > INPUT_THRESHOLD;
+    }
+    
+    private void ClampToZero(ref float value, ref float velocity)
+    {
+        if (Mathf.Abs(value) < ZERO_THRESHOLD)
         {
-            float decelTime = isSprinting ? sprintDecelerationTime : decelerationTime;
-            currentSpeed = Mathf.SmoothDamp(currentSpeed, 0, ref speedVelocity, decelTime);
-
-            Vector3 movement = Vector3.zero;
-            if (currentSpeed > 0.1f)
-            {
-                movement = transform.forward * currentSpeed * Time.deltaTime;
-            }
-            movement.y = verticalVelocity * Time.deltaTime;
-
-            Vector3 childPosBefore = currentCharacter.transform.position;
-            currentController.Move(movement);
-            Vector3 childPosAfter = currentCharacter.transform.position;
-            Vector3 deltaMovement = childPosAfter - childPosBefore;
-            transform.position += deltaMovement;
-
-            currentCharacter.transform.localPosition = Vector3.zero;
-            currentCharacter.transform.rotation = transform.rotation;
+            value = 0f;
+            velocity = 0f;
         }
     }
-
-    
     
     public float GetCurrentSpeed() => currentSpeed;
-    public float GetWalkSpeed() => walkSpeed;
-    public float GetRunSpeed() => runSpeed;
-    public bool IsSprinting() => isSprinting;
+    public float GetTargetSpeed() => targetSpeed;
+    public float GetCurrentHorizontal() => currentHorizontal;
+    public float GetCurrentVertical() => currentVertical;
     public bool IsWalking() => isWalking;
-    public bool IsMoving() => currentSpeed > 0.1f;
-    public bool IsGrounded() => currentController != null && currentController.isGrounded;
-    public float GetVerticalVelocity() => verticalVelocity;
-    public Vector2 GetMovementVector() => smoothedMoveInput;
-    public float GetNormalizedSpeed() => currentSpeed / walkSpeed;
+    public bool IsSprinting() => isSprinting;
+    public float GetSpeedVelocity() => speedVelocity;
+    public Vector3 GetCurrentMoveDirection() => currentMoveDirection;
+    public Vector3 GetCalculatedVelocity() => calculatedVelocity;
+    public PlayerInputActions GetInputActions() => inputActions;
+    public Vector3 GetRawMoveDirection() => currentMoveDirection;
+    public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
+    public bool IsMovingBackward() => GetMovementDirectionDot() < -MOVEMENT_DIRECTION_THRESHOLD;
+    public bool IsMovingForward() => GetMovementDirectionDot() > MOVEMENT_DIRECTION_THRESHOLD;
 }
