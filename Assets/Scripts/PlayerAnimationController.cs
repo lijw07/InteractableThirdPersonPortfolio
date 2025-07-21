@@ -5,6 +5,7 @@ public class PlayerAnimationController : MonoBehaviour
     private static readonly int MovementSpeed = Animator.StringToHash("MovementSpeed");
     private static readonly int Horizontal = Animator.StringToHash("Horizontal");
     private static readonly int Vertical = Animator.StringToHash("Vertical");
+    private static readonly int IsGrounded = Animator.StringToHash("IsGrounded");
     
     private PlayerController playerController;
     private CharacterManageController characterManager;
@@ -61,6 +62,7 @@ public class PlayerAnimationController : MonoBehaviour
         float currentSpeed = playerController.GetCurrentSpeed();
         float horizontal = playerController.GetCurrentHorizontal();
         float vertical = playerController.GetCurrentVertical();
+        bool isGrounded = playerController.IsGrounded();
 
         animator.SetFloat(MovementSpeed, currentSpeed);
         animator.SetFloat(Horizontal, horizontal);
