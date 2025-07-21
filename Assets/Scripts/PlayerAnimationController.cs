@@ -5,24 +5,41 @@ public class PlayerAnimationController : MonoBehaviour
     private static readonly int MovementSpeed = Animator.StringToHash("MovementSpeed");
     private static readonly int Horizontal = Animator.StringToHash("Horizontal");
     private static readonly int Vertical = Animator.StringToHash("Vertical");
-    private static readonly int MovementTier = Animator.StringToHash("MovementTier");
     
     private PlayerController playerController;
+    private CharacterManageController characterManager;
     private Animator animator;
     
     private void Awake()
     {
         playerController = GetComponent<PlayerController>();
-        animator = GetComponentInChildren<Animator>();
+        characterManager = GetComponent<CharacterManageController>();
         
         if (playerController == null)
         {
             Debug.LogError("PlayerController component missing!");
         }
         
-        if (animator == null)
+        if (characterManager == null)
         {
-            Debug.LogError("Animator component missing in children!");
+            Debug.LogError("CharacterManageController component missing!");
+        }
+    }
+    
+    private void Start()
+    {
+        UpdateAnimatorReference();
+    }
+    
+    private void UpdateAnimatorReference()
+    {
+        if (characterManager != null)
+        {
+            animator = characterManager.GetCurrentAnimator();
+            if (animator == null)
+            {
+                Debug.LogError("No Animator found on active character!");
+            }
         }
     }
     
@@ -35,6 +52,12 @@ public class PlayerAnimationController : MonoBehaviour
     
     private void UpdateAnimation()
     {
+        if (animator == null)
+        {
+            UpdateAnimatorReference();
+            if (animator == null) return;
+        }
+        
         float currentSpeed = playerController.GetCurrentSpeed();
         float horizontal = playerController.GetCurrentHorizontal();
         float vertical = playerController.GetCurrentVertical();
@@ -42,5 +65,10 @@ public class PlayerAnimationController : MonoBehaviour
         animator.SetFloat(MovementSpeed, currentSpeed);
         animator.SetFloat(Horizontal, horizontal);
         animator.SetFloat(Vertical, vertical);
+    }
+    
+    public void OnCharacterSwitched()
+    {
+        UpdateAnimatorReference();
     }
 }
