@@ -24,6 +24,7 @@ public class PlayerController : MonoBehaviour
     private const float MOVEMENT_DIRECTION_THRESHOLD = 0.5f;
     
     private CharacterController characterController;
+    private CharacterManageController characterManager;
     private PlayerInputActions inputActions;
     
     private float currentSpeed;
@@ -46,11 +47,12 @@ public class PlayerController : MonoBehaviour
     
     private void Awake()
     {
-        InitializeComponents();
+        InitializeInputComponents();
     }
     
     private void Start()
     {
+        InitializeCharacterComponents();
         SubscribeToInputEvents();
         previousPosition = transform.position;
     }
@@ -68,16 +70,32 @@ public class PlayerController : MonoBehaviour
         UpdateVelocityTracking();
     }
     
-    private void InitializeComponents()
+    private void InitializeInputComponents()
     {
-        characterController = GetComponent<CharacterController>();
         inputActions = GetComponent<PlayerInputActions>();
-        
-        if (characterController == null)
-            Debug.LogError("PlayerController: CharacterController component missing!");
         
         if (inputActions == null)
             inputActions = gameObject.AddComponent<PlayerInputActions>();
+    }
+    
+    private void InitializeCharacterComponents()
+    {
+        characterManager = GetComponent<CharacterManageController>();
+        
+        if (characterManager == null)
+            Debug.LogError("PlayerController: CharacterManageController component missing!");
+        else
+            UpdateCharacterController();
+    }
+    
+    private void UpdateCharacterController()
+    {
+        if (characterManager != null)
+        {
+            characterController = characterManager.GetCurrentCharacterController();
+            if (characterController == null)
+                Debug.LogError("PlayerController: No CharacterController found on active character!");
+        }
     }
     
     private void SubscribeToInputEvents()
@@ -175,15 +193,18 @@ public class PlayerController : MonoBehaviour
             return;
         }
         
-        if (isSprinting && ShouldProcessMovement())
+        if (ShouldProcessMovement())
         {
-            Vector3 inputDirection = GetWorldSpaceInputDirection();
-            Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
-            RotateTowardsMovement(moveDirection);
-        }
-        else
-        {
-            RotateWithCamera();
+            if (isSprinting)
+            {
+                Vector3 inputDirection = GetWorldSpaceInputDirection();
+                Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
+                RotateTowardsMovement(moveDirection);
+            }
+            else
+            {
+                RotateWithCamera();
+            }
         }
     }
     
@@ -200,8 +221,36 @@ public class PlayerController : MonoBehaviour
     
     private void ApplyMovement(Vector3 direction)
     {
+        if (characterController == null)
+        {
+            UpdateCharacterController();
+            if (characterController == null) return;
+        }
+        
+        // Check if the controller is active before moving
+        if (!characterController.enabled || !characterController.gameObject.activeInHierarchy)
+        {
+            UpdateCharacterController();
+            return;
+        }
+        
         Vector3 movement = direction * currentSpeed * Time.deltaTime;
+        
+        // Store the child's position before the move
+        Vector3 childPosBefore = characterController.transform.position;
+        
+        // Let the CharacterController move (this moves the child)
         characterController.Move(movement);
+        
+        // Calculate the delta and apply it to the parent instead
+        Vector3 childPosAfter = characterController.transform.position;
+        Vector3 deltaMovement = childPosAfter - childPosBefore;
+        
+        // Move the parent by the same amount
+        transform.position += deltaMovement;
+        
+        // Reset the child back to local zero position
+        characterController.transform.localPosition = Vector3.zero;
     }
     
     private void RotateWithCamera()
@@ -326,4 +375,9 @@ public class PlayerController : MonoBehaviour
     public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
     public bool IsMovingBackward() => GetMovementDirectionDot() < -MOVEMENT_DIRECTION_THRESHOLD;
     public bool IsMovingForward() => GetMovementDirectionDot() > MOVEMENT_DIRECTION_THRESHOLD;
+    
+    public void OnCharacterSwitched()
+    {
+        UpdateCharacterController();
+    }
 }

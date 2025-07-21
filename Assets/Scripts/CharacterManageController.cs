@@ -30,15 +30,12 @@ public class CharacterManageController : MonoBehaviour
     
     void Start()
     {
-        Debug.Log($"[CharacterManageController] Start() called on {gameObject.name}");
-        
         FindChildCharacters();
         
         if (characters.Count > 0)
         {
             int randomIndex = Random.Range(0, characters.Count);
             currentCharacterIndex = randomIndex;
-            Debug.Log($"[CharacterManageController] Selecting random character index: {randomIndex} of {characters.Count}");
             ActivateCharacter(randomIndex);
         }
         else
@@ -132,14 +129,22 @@ public class CharacterManageController : MonoBehaviour
         }
         
         currentCharacter = characters[index];
-        Debug.Log($"[CharacterManageController] Activating character {index}: {currentCharacter.name}");
-        
         currentCharacter.SetActive(true);
         
         CharacterController controller = currentCharacter.GetComponent<CharacterController>();
         if (controller == null)
         {
             Debug.LogError($"Character {currentCharacter.name} is missing CharacterController!");
+        }
+        
+        if (playerController != null)
+        {
+            playerController.OnCharacterSwitched();
+        }
+        
+        if (animationController != null)
+        {
+            animationController.OnCharacterSwitched();
         }
     }
     
@@ -156,8 +161,21 @@ public class CharacterManageController : MonoBehaviour
         return currentCharacter;
     }
     
-    public List<GameObject> GetAllCharacters()
+    public CharacterController GetCurrentCharacterController()
     {
-        return characters;
+        if (currentCharacter != null)
+        {
+            return currentCharacter.GetComponent<CharacterController>();
+        }
+        return null;
+    }
+    
+    public Animator GetCurrentAnimator()
+    {
+        if (currentCharacter != null)
+        {
+            return currentCharacter.GetComponent<Animator>();
+        }
+        return null;
     }
 }
