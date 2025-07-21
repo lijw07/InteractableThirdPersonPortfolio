@@ -11,6 +11,9 @@ TagManager:
   - Synty Medium Farm
   - Synty Small Farm
   - Weapon
+  - Stone
+  - Grass
+  - Dirt
   layers:
   - Default
   - TransparentFX

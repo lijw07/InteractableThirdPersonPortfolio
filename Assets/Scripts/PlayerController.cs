@@ -16,6 +16,11 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float turnSpeed = 10f;
     [SerializeField] private bool useMouseRotation = true;
     
+    [Header("Gravity Settings")]
+    [SerializeField] private float gravity = -9.81f;
+    [SerializeField] private float groundCheckDistance = 0.1f;
+    [SerializeField] private LayerMask groundLayerMask = -1;
+    
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     private const float SPRINT_ANGLE_THRESHOLD = 60f;
@@ -45,6 +50,10 @@ public class PlayerController : MonoBehaviour
     private Vector3 smoothMoveDirection;
     private Vector3 moveDirectionVelocity;
     
+    // Gravity-related variables
+    private float verticalVelocityY;
+    private bool isGrounded;
+    
     private void Awake()
     {
         InitializeInputComponents();
@@ -64,10 +73,41 @@ public class PlayerController : MonoBehaviour
     
     private void Update()
     {
+        CheckGroundStatus();
         UpdateInputState();
         UpdateMovementState();
+        UpdateGravity();
         ProcessMovementAndRotation();
         UpdateVelocityTracking();
+    }
+    
+    private void CheckGroundStatus()
+    {
+        if (characterController == null) return;
+        
+        // Check if grounded using CharacterController's built-in isGrounded
+        isGrounded = characterController.isGrounded;
+        
+        // Additional raycast check for more reliable ground detection
+        Vector3 rayOrigin = transform.position + Vector3.up * 0.1f;
+        Ray ray = new Ray(rayOrigin, Vector3.down);
+        
+        bool raycastHit = Physics.Raycast(ray, groundCheckDistance + 0.1f, groundLayerMask);
+        isGrounded = isGrounded || raycastHit;
+        
+        // Reset vertical velocity when grounded
+        if (isGrounded && verticalVelocityY < 0)
+        {
+            verticalVelocityY = -2f; // Small negative value to keep grounded
+        }
+    }
+    
+    private void UpdateGravity()
+    {
+        if (!isGrounded)
+        {
+            verticalVelocityY += gravity * Time.deltaTime;
+        }
     }
     
     private void InitializeInputComponents()
@@ -234,22 +274,29 @@ public class PlayerController : MonoBehaviour
             return;
         }
         
-        Vector3 movement = direction * currentSpeed * Time.deltaTime;
+        // Calculate horizontal movement
+        Vector3 horizontalMovement = direction * currentSpeed * Time.deltaTime;
         
-        // Store the child's position before the move
+        // Calculate vertical movement (gravity)
+        Vector3 verticalMovement = new Vector3(0, verticalVelocityY * Time.deltaTime, 0);
+        
+        // Combine horizontal and vertical movement
+        Vector3 totalMovement = horizontalMovement + verticalMovement;
+        
+        // Use CharacterController for collision detection, but apply movement to parent
         Vector3 childPosBefore = characterController.transform.position;
         
-        // Let the CharacterController move (this moves the child)
-        characterController.Move(movement);
+        // Move the CharacterController to handle collisions
+        characterController.Move(totalMovement);
         
-        // Calculate the delta and apply it to the parent instead
+        // Calculate how much the CharacterController actually moved (after collisions)
         Vector3 childPosAfter = characterController.transform.position;
-        Vector3 deltaMovement = childPosAfter - childPosBefore;
+        Vector3 actualMovement = childPosAfter - childPosBefore;
         
-        // Move the parent by the same amount
-        transform.position += deltaMovement;
+        // Apply the actual movement to the parent instead
+        transform.position += actualMovement;
         
-        // Reset the child back to local zero position
+        // Reset the child's position to maintain consistent relative positioning
         characterController.transform.localPosition = Vector3.zero;
     }
     
@@ -375,6 +422,10 @@ public class PlayerController : MonoBehaviour
     public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
     public bool IsMovingBackward() => GetMovementDirectionDot() < -MOVEMENT_DIRECTION_THRESHOLD;
     public bool IsMovingForward() => GetMovementDirectionDot() > MOVEMENT_DIRECTION_THRESHOLD;
+    
+    // New gravity-related public methods
+    public bool IsGrounded() => isGrounded;
+    public float GetVerticalVelocity() => verticalVelocityY;
     
     public void OnCharacterSwitched()
     {

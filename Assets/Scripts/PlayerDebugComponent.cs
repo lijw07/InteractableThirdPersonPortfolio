@@ -292,6 +292,7 @@ public class DebugGUI
         DrawRotationInfo();
         DrawVelocityInfo();
         DrawCameraDebugInfo();
+        DrawFootstepDebugInfo();
         DrawInstructions();
         
         GUILayout.EndArea();
@@ -468,5 +469,19 @@ public class DebugGUI
             fontStyle = FontStyle.Bold,
             normal = { textColor = Color.yellow }
         };
+    }
+    
+    private void DrawFootstepDebugInfo()
+    {
+        FootstepSystem footstepSystem = controller.GetComponent<FootstepSystem>();
+        if (footstepSystem == null) return;
+    
+        DrawSection("Footstep Debug", () =>
+        {
+            // We'll need to expose these from FootstepSystem
+            DrawLabelValue("Current Surface", footstepSystem.GetCurrentSurface());
+            DrawLabelValue("Last Raycast Hit", footstepSystem.GetLastRaycastObject());
+            DrawLabelValue("Raycast Distance", footstepSystem.raycastDistance.ToString("F2"));
+        });
     }
 }
