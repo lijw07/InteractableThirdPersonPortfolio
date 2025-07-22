@@ -303,7 +303,6 @@ public class DebugGUI
         {
             DrawLabelValue("Current Speed", controller.GetCurrentSpeed().ToString("F2"));
             DrawLabelValue("Target Speed", controller.GetTargetSpeed().ToString("F2"));
-            DrawLabelValue("Speed Velocity", controller.GetSpeedVelocity().ToString("F2"));
             DrawLabelValue("Movement Mode", GetMovementModeString());
             DrawLabelValue("Direction", VectorToString(controller.GetCurrentMoveDirection()));
         });

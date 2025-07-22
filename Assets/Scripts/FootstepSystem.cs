@@ -6,95 +6,72 @@ public class FootstepSystem : MonoBehaviour
     public AudioSource footstepAudioSource;
     
     [Header("Footstep Sounds")]
-    public AudioClip[] grassFootsteps;
+    public AudioClip[] dirtFootsteps;
     
     [Header("Volume Settings by Speed")]
-    [Range(0f, 1f)] public float walkVolume = 0.3f;
-    [Range(0f, 1f)] public float runVolume = 0.6f;
-    [Range(0f, 1f)] public float sprintVolume = 0.9f;
+    [Range(0f, 1f)] public float walkVolume = 0.1f;
+    [Range(0f, 1f)] public float runVolume = 0.25f;
+    [Range(0f, 1f)] public float sprintVolume = 0.4f;
+    
+    [Header("Speed Thresholds")]
+    public float walkSpeedThreshold = 2f;
+    public float runSpeedThreshold = 6f;
     
     [Header("Pitch Variation")]
     [Range(0f, 0.5f)] public float pitchVariation = 0.1f;
-    
-    [Header("Debug")]
-    public bool debugFootsteps = false;
+
+    public AudioClip[] landingSound;
     
     private CharacterController characterController;
-    private CharacterManageController characterManager;
-    private PlayerController playerController;
+    private Rigidbody rb;
     
     void Start() 
     {
         if (footstepAudioSource == null)
             footstepAudioSource = GetComponent<AudioSource>();
         
-        characterManager = GetComponent<CharacterManageController>();
-        playerController = GetComponent<PlayerController>();
-        
-        if (characterManager != null)
-        {
-            characterController = characterManager.GetCurrentCharacterController();
-        }
+        characterController = GetComponent<CharacterController>();
+        rb = GetComponent<Rigidbody>();
         
         footstepAudioSource.playOnAwake = false;
         footstepAudioSource.spatialBlend = 1f;
-    }
-    
-    public void OnCharacterSwitched()
-    {
-        if (characterManager != null)
-        {
-            characterController = characterManager.GetCurrentCharacterController();
-        }
     }
     
     public void OnFootstep() 
     {
         PlayFootstepSound();
     }
-    
-    bool IsMoving()
+
+    public void OnLand()
     {
-        if (characterController == null)
+        playLandingSound();
+    }
+
+    void playLandingSound()
+    {
+        if (landingSound == null || landingSound.Length == 0) 
         {
-            UpdateCharacterController();
-            if (characterController == null) return false;
+            return;
         }
         
-        return characterController.velocity.magnitude > 0.05f; // Lowered threshold
-    }
-    
-    bool IsGrounded() 
-    {
-        if (characterController == null)
-        {
-            UpdateCharacterController();
-            if (characterController == null) return true; // Default to true if no controller
-        }
+        AudioClip clipToPlay = landingSound[Random.Range(0, landingSound.Length)];
         
-        return characterController.isGrounded;
-    }
-    
-    void UpdateCharacterController()
-    {
-        if (characterManager != null)
-        {
-            characterController = characterManager.GetCurrentCharacterController();
-        }
+        footstepAudioSource.volume = 0.5f;
+        footstepAudioSource.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);
+        
+        footstepAudioSource.PlayOneShot(clipToPlay);
     }
     
     float GetCurrentMovementSpeed()
     {
-        // Try to get speed from PlayerController first (more reliable)
-        if (playerController != null)
-        {
-            return playerController.GetCurrentSpeed();
-        }
-        
-        // Fallback to CharacterController velocity
         if (characterController != null)
         {
             return characterController.velocity.magnitude;
+        }
+        
+        if (rb != null)
+        {
+            return rb.linearVelocity.magnitude;
         }
         
         return 0f;
@@ -102,20 +79,20 @@ public class FootstepSystem : MonoBehaviour
     
     void PlayFootstepSound() 
     {
-        if (grassFootsteps == null || grassFootsteps.Length == 0) 
+        Debug.Log($"Playing footstep sound at volume {footstepAudioSource.volume} with clip {footstepAudioSource.clip}");
+        if (dirtFootsteps == null || dirtFootsteps.Length == 0) 
         {
-            if (debugFootsteps) Debug.Log("No footstep sounds assigned");
             return;
         }
-            
+        
         float currentSpeed = GetCurrentMovementSpeed();
         float currentVolume;
         
-        if (currentSpeed < 2f)
+        if (currentSpeed < walkSpeedThreshold)
         {
             currentVolume = walkVolume;
         }
-        else if (currentSpeed < 6f)
+        else if (currentSpeed < runSpeedThreshold)
         {
             currentVolume = runVolume;
         }
@@ -124,7 +101,7 @@ public class FootstepSystem : MonoBehaviour
             currentVolume = sprintVolume;
         }
         
-        AudioClip clipToPlay = grassFootsteps[Random.Range(0, grassFootsteps.Length)];
+        AudioClip clipToPlay = dirtFootsteps[Random.Range(0, dirtFootsteps.Length)];
         
         footstepAudioSource.volume = currentVolume;
         footstepAudioSource.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);

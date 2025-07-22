@@ -31,24 +31,42 @@ public class ThirdPersonCamera : MonoBehaviour
     private PlayerController playerController;
     private CharacterManageController characterManager;
     
+    [SerializeField] private float minZoomDistance = 2f;
+    [SerializeField] private float maxZoomDistance = 10f;
+    [SerializeField] private float zoomSpeed = 5f;
+
+    private float targetDistance;
+
+    
     private void Awake()
     {
         InitializeSingleton();
         InitializeComponents();
         InitializeTarget();
         SetCursorState();
+        
+        targetDistance = distance;
     }
     
     private void LateUpdate()
     {
         UpdateDynamicTarget();
-        
-        if (IsTargetValid())
+
+        if (!IsTargetValid()) return;
+
+        HandleCameraRotation();
+
+        float scrollInput = Input.GetAxis("Mouse ScrollWheel");
+        if (Mathf.Abs(scrollInput) > 0.01f)
         {
-            HandleCameraRotation();
-            UpdatePosition();
+            targetDistance -= scrollInput * zoomSpeed;
+            targetDistance = Mathf.Clamp(targetDistance, minZoomDistance, maxZoomDistance);
         }
+        distance = Mathf.Lerp(distance, targetDistance, Time.deltaTime * zoomSpeed);
+
+        UpdatePosition();
     }
+
     
     private void InitializeSingleton()
     {
@@ -70,6 +88,9 @@ public class ThirdPersonCamera : MonoBehaviour
         
         if (playerController == null)
             Debug.LogError("ThirdPersonCamera: PlayerController not found!");
+        
+        int playerLayer = LayerMask.NameToLayer("Player");
+        collisionLayers = collisionLayers & ~(1 << playerLayer);
         
         if (collisionLayers == -1)
             collisionLayers = ~(1 << LayerMask.NameToLayer("UI"));

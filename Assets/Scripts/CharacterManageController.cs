@@ -34,9 +34,8 @@ public class CharacterManageController : MonoBehaviour
         
         if (characters.Count > 0)
         {
-            int randomIndex = Random.Range(0, characters.Count);
-            currentCharacterIndex = randomIndex;
-            ActivateCharacter(randomIndex);
+            currentCharacterIndex = 0;
+            ActivateCharacter(currentCharacterIndex);
         }
         else
         {
@@ -67,8 +66,6 @@ public class CharacterManageController : MonoBehaviour
             character.SetActive(false);
             characters.Add(character);
         }
-        
-        Debug.Log($"Found {characters.Count} child characters");
     }
     
     void OnSwitchCharacter()
@@ -90,32 +87,39 @@ public class CharacterManageController : MonoBehaviour
     public void SwitchToNextCharacter()
     {
         if (characters.Count <= 1) return;
-        
+
         int previousIndex = currentCharacterIndex;
+        GameObject previousCharacter = characters[previousIndex];
+
         currentCharacterIndex = (currentCharacterIndex + 1) % characters.Count;
-        
+        GameObject nextCharacter = characters[currentCharacterIndex];
+
+        nextCharacter.transform.position = previousCharacter.transform.position;
+        nextCharacter.transform.rotation = previousCharacter.transform.rotation;
+
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);
-        
-        currentCharacter.transform.localPosition = Vector3.zero;
-        currentCharacter.transform.localRotation = Quaternion.identity;
-        
+
         Debug.Log($"Switched to character: {currentCharacter.name}");
     }
+
     
     public void SwitchToPreviousCharacter()
     {
         if (characters.Count <= 1) return;
-        
+
         int previousIndex = currentCharacterIndex;
-        currentCharacterIndex = (currentCharacterIndex - 1 + characters.Count) % characters.Count;
+        GameObject previousCharacter = characters[previousIndex];
+
+        currentCharacterIndex = (currentCharacterIndex + 1) % characters.Count;
+        GameObject nextCharacter = characters[currentCharacterIndex];
         
+        nextCharacter.transform.position = previousCharacter.transform.position;
+        nextCharacter.transform.rotation = previousCharacter.transform.rotation;
+
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);
-        
-        currentCharacter.transform.localPosition = Vector3.zero;
-        currentCharacter.transform.localRotation = Quaternion.identity;
-        
+
         Debug.Log($"Switched to character: {currentCharacter.name}");
     }
     
@@ -129,6 +133,8 @@ public class CharacterManageController : MonoBehaviour
         }
         
         currentCharacter = characters[index];
+        Animator anim = currentCharacter.GetComponent<Animator>();
+        if (anim != null) anim.enabled = true;
         currentCharacter.SetActive(true);
         
         CharacterController controller = currentCharacter.GetComponent<CharacterController>();
@@ -153,6 +159,8 @@ public class CharacterManageController : MonoBehaviour
         if (index < 0 || index >= characters.Count) return;
         
         GameObject character = characters[index];
+        Animator anim = character.GetComponent<Animator>();
+        if (anim != null) anim.enabled = false;
         character.SetActive(false);
     }
     

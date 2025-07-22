@@ -3,8 +3,8 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    [SerializeField] private float walkSpeed = 3f;
-    [SerializeField] private float runSpeed = 4.5f;
+    [SerializeField] private float walkSpeed = 2f;
+    [SerializeField] private float runSpeed = 3.5f;
     [SerializeField] private float sprintSpeed = 6f;
     
     [Header("Acceleration Settings")]
@@ -16,20 +16,24 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float turnSpeed = 10f;
     [SerializeField] private bool useMouseRotation = true;
     
+    [Header("Gravity Settings")]
+    [SerializeField] private float gravity = -9.81f;
+    [SerializeField] private float groundCheckDistance = 0.1f;
+    [SerializeField] private LayerMask groundLayerMask = -1;
+    [SerializeField] private float groundCheckRadius = 0.3f;
+    
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     private const float SPRINT_ANGLE_THRESHOLD = 60f;
     private const float SIDEWAYS_MIN_ANGLE = 60f;
     private const float SIDEWAYS_MAX_ANGLE = 120f;
-    private const float MOVEMENT_DIRECTION_THRESHOLD = 0.5f;
     
-    private CharacterController characterController;
-    private CharacterManageController characterManager;
-    private PlayerInputActions inputActions;
+    public CharacterController characterController;
+    public CharacterManageController characterManager;
+    public PlayerInputActions inputActions;
     
     private float currentSpeed;
     private float targetSpeed;
-    private float speedVelocity;
     private bool isWalking;
     private bool isSprinting;
     private Vector3 currentMoveDirection;
@@ -44,6 +48,12 @@ public class PlayerController : MonoBehaviour
     
     private Vector3 smoothMoveDirection;
     private Vector3 moveDirectionVelocity;
+    
+    private float verticalVelocityY;
+    private bool isGrounded;
+    private bool hasLandedOnce = false;
+    
+    private bool canMove = true;
     
     private void Awake()
     {
@@ -64,10 +74,52 @@ public class PlayerController : MonoBehaviour
     
     private void Update()
     {
+        CheckGroundStatus();
+        UpdateGravity();
+        if (!canMove)
+        {
+            ApplyMovement(Vector3.zero);
+            UpdateVelocityTracking();
+            return;
+        }
+
         UpdateInputState();
         UpdateMovementState();
         ProcessMovementAndRotation();
         UpdateVelocityTracking();
+    }
+
+    private void CheckGroundStatus()
+    {
+        bool controllerGrounded = characterController != null && characterController.isGrounded;
+        
+        bool raycastGrounded = false;
+        if (characterController != null)
+        {
+            Vector3 spherePosition = transform.position + (Vector3.up * groundCheckRadius);
+            raycastGrounded = Physics.SphereCast(spherePosition, groundCheckRadius, Vector3.down, 
+                out RaycastHit hit, groundCheckDistance + groundCheckRadius, groundLayerMask);
+        }
+        
+        bool wasGrounded = isGrounded;
+        isGrounded = controllerGrounded || raycastGrounded;
+        
+        if (!wasGrounded && isGrounded && !hasLandedOnce)
+        {
+            hasLandedOnce = true;
+        }
+    }
+    
+    private void UpdateGravity()
+    {
+        if (isGrounded && verticalVelocityY < 0)
+        {
+            verticalVelocityY = -2f;
+        }
+        else
+        {
+            verticalVelocityY += gravity * Time.deltaTime;
+        }
     }
     
     private void InitializeInputComponents()
@@ -123,7 +175,7 @@ public class PlayerController : MonoBehaviour
     private void UpdateMovementState()
     {
         CalculateTargetSpeed();
-        SmoothCurrentSpeed();
+        currentSpeed = targetSpeed;
     }
     
     private void ProcessMovementAndRotation()
@@ -137,6 +189,7 @@ public class PlayerController : MonoBehaviour
         else
         {
             ClearMovementIfStopped();
+            ApplyMovement(Vector3.zero);
         }
         
         HandleRotation();
@@ -227,29 +280,27 @@ public class PlayerController : MonoBehaviour
             if (characterController == null) return;
         }
         
-        // Check if the controller is active before moving
         if (!characterController.enabled || !characterController.gameObject.activeInHierarchy)
         {
             UpdateCharacterController();
             return;
         }
         
-        Vector3 movement = direction * currentSpeed * Time.deltaTime;
+        Vector3 horizontalMovement = direction * currentSpeed * Time.deltaTime;
         
-        // Store the child's position before the move
+        Vector3 verticalMovement = new Vector3(0, verticalVelocityY * Time.deltaTime, 0);
+        
+        Vector3 totalMovement = horizontalMovement + verticalMovement;
+        
         Vector3 childPosBefore = characterController.transform.position;
         
-        // Let the CharacterController move (this moves the child)
-        characterController.Move(movement);
+        characterController.Move(totalMovement);
         
-        // Calculate the delta and apply it to the parent instead
         Vector3 childPosAfter = characterController.transform.position;
         Vector3 deltaMovement = childPosAfter - childPosBefore;
         
-        // Move the parent by the same amount
         transform.position += deltaMovement;
         
-        // Reset the child back to local zero position
         characterController.transform.localPosition = Vector3.zero;
     }
     
@@ -290,12 +341,6 @@ public class PlayerController : MonoBehaviour
         return runSpeed;
     }
     
-    private void SmoothCurrentSpeed()
-    {
-        float smoothTime = targetSpeed > currentSpeed ? accelerationTime : decelerationTime;
-        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedVelocity, smoothTime);
-        ClampToZero(ref currentSpeed, ref speedVelocity);
-    }
     
     private bool CanSprintInCurrentDirection()
     {
@@ -318,18 +363,6 @@ public class PlayerController : MonoBehaviour
         if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
         
         return Vector3.Angle(transform.forward, moveDirection);
-    }
-    
-    private float GetMovementDirectionDot()
-    {
-        if (!HasSignificantInput()) return 0f;
-        
-        Vector3 inputDirection = GetWorldSpaceInputDirection();
-        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
-        
-        if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
-        
-        return Vector3.Dot(transform.forward, moveDirection.normalized);
     }
     
     private bool HasSignificantInput()
@@ -361,23 +394,26 @@ public class PlayerController : MonoBehaviour
         }
     }
     
+    public void OnCharacterSwitched()
+    {
+        UpdateCharacterController();
+    }
+    
     public float GetCurrentSpeed() => currentSpeed;
     public float GetTargetSpeed() => targetSpeed;
     public float GetCurrentHorizontal() => currentHorizontal;
     public float GetCurrentVertical() => currentVertical;
     public bool IsWalking() => isWalking;
     public bool IsSprinting() => isSprinting;
-    public float GetSpeedVelocity() => speedVelocity;
     public Vector3 GetCurrentMoveDirection() => currentMoveDirection;
     public Vector3 GetCalculatedVelocity() => calculatedVelocity;
     public PlayerInputActions GetInputActions() => inputActions;
     public Vector3 GetRawMoveDirection() => currentMoveDirection;
     public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
-    public bool IsMovingBackward() => GetMovementDirectionDot() < -MOVEMENT_DIRECTION_THRESHOLD;
-    public bool IsMovingForward() => GetMovementDirectionDot() > MOVEMENT_DIRECTION_THRESHOLD;
-    
-    public void OnCharacterSwitched()
-    {
-        UpdateCharacterController();
-    }
+    public CharacterController GetCharacterController() => characterController;
+   public bool IsGrounded() => isGrounded;
+   public bool HasLandedOnce() => hasLandedOnce;
+   public void EnableMovement() => canMove = true;
+   public void DisableMovement() => canMove = false;
+    public float GetVerticalVelocity() => verticalVelocityY;
 }
