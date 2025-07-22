@@ -34,9 +34,8 @@ public class CharacterManageController : MonoBehaviour
         
         if (characters.Count > 0)
         {
-            int randomIndex = Random.Range(0, characters.Count);
-            currentCharacterIndex = randomIndex;
-            ActivateCharacter(randomIndex);
+            currentCharacterIndex = 0;
+            ActivateCharacter(currentCharacterIndex);
         }
         else
         {
@@ -67,8 +66,6 @@ public class CharacterManageController : MonoBehaviour
             character.SetActive(false);
             characters.Add(character);
         }
-        
-        Debug.Log($"Found {characters.Count} child characters");
     }
     
     void OnSwitchCharacter()
@@ -116,8 +113,7 @@ public class CharacterManageController : MonoBehaviour
 
         currentCharacterIndex = (currentCharacterIndex + 1) % characters.Count;
         GameObject nextCharacter = characters[currentCharacterIndex];
-
-        // Transfer position/rotation BEFORE activating
+        
         nextCharacter.transform.position = previousCharacter.transform.position;
         nextCharacter.transform.rotation = previousCharacter.transform.rotation;
 

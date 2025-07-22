@@ -3,8 +3,8 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    [SerializeField] private float walkSpeed = 3f;
-    [SerializeField] private float runSpeed = 4.5f;
+    [SerializeField] private float walkSpeed = 2f;
+    [SerializeField] private float runSpeed = 3.5f;
     [SerializeField] private float sprintSpeed = 6f;
     
     [Header("Acceleration Settings")]
@@ -21,7 +21,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float groundCheckDistance = 0.1f;
     [SerializeField] private LayerMask groundLayerMask = -1;
     [SerializeField] private float groundCheckRadius = 0.3f;
-    [SerializeField] private bool debugGroundCheck = false;
     
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
@@ -29,13 +28,12 @@ public class PlayerController : MonoBehaviour
     private const float SIDEWAYS_MIN_ANGLE = 60f;
     private const float SIDEWAYS_MAX_ANGLE = 120f;
     
-    private CharacterController characterController;
-    private CharacterManageController characterManager;
-    private PlayerInputActions inputActions;
+    public CharacterController characterController;
+    public CharacterManageController characterManager;
+    public PlayerInputActions inputActions;
     
     private float currentSpeed;
     private float targetSpeed;
-    private float speedVelocity;
     private bool isWalking;
     private bool isSprinting;
     private Vector3 currentMoveDirection;
@@ -77,54 +75,35 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         CheckGroundStatus();
+        UpdateGravity();
+        if (!canMove)
+        {
+            ApplyMovement(Vector3.zero);
+            UpdateVelocityTracking();
+            return;
+        }
+
         UpdateInputState();
         UpdateMovementState();
-        UpdateGravity();
         ProcessMovementAndRotation();
         UpdateVelocityTracking();
     }
 
     private void CheckGroundStatus()
     {
-        // First check CharacterController's built-in ground detection
         bool controllerGrounded = characterController != null && characterController.isGrounded;
         
-        // Then perform sphere cast for more reliable ground detection
         bool raycastGrounded = false;
         if (characterController != null)
         {
             Vector3 spherePosition = transform.position + (Vector3.up * groundCheckRadius);
             raycastGrounded = Physics.SphereCast(spherePosition, groundCheckRadius, Vector3.down, 
                 out RaycastHit hit, groundCheckDistance + groundCheckRadius, groundLayerMask);
-            
-            // Debug visualization with Debug.DrawRay
-            if (debugGroundCheck)
-            {
-                float rayLength = groundCheckDistance + groundCheckRadius;
-                Debug.DrawRay(spherePosition, Vector3.down * rayLength, 
-                    raycastGrounded ? Color.green : Color.red, 0.1f);
-                
-                // Draw additional rays around the sphere edge for better visualization
-                for (int i = 0; i < 8; i++)
-                {
-                    float angle = i * Mathf.PI * 2 / 8;
-                    Vector3 offset = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * groundCheckRadius;
-                    Debug.DrawRay(spherePosition + offset, Vector3.down * rayLength, 
-                        raycastGrounded ? Color.green : Color.red, 0.1f);
-                }
-                
-                if (raycastGrounded)
-                {
-                    Debug.Log($"Ground hit: {hit.collider.name} at distance: {hit.distance}");
-                }
-            }
         }
         
-        // Use either detection method
         bool wasGrounded = isGrounded;
         isGrounded = controllerGrounded || raycastGrounded;
         
-        // Track first landing
         if (!wasGrounded && isGrounded && !hasLandedOnce)
         {
             hasLandedOnce = true;
@@ -135,7 +114,7 @@ public class PlayerController : MonoBehaviour
     {
         if (isGrounded && verticalVelocityY < 0)
         {
-            verticalVelocityY = -2f; // Small downward force to keep grounded
+            verticalVelocityY = -2f;
         }
         else
         {
@@ -196,7 +175,7 @@ public class PlayerController : MonoBehaviour
     private void UpdateMovementState()
     {
         CalculateTargetSpeed();
-        SmoothCurrentSpeed();
+        currentSpeed = targetSpeed;
     }
     
     private void ProcessMovementAndRotation()
@@ -210,7 +189,6 @@ public class PlayerController : MonoBehaviour
         else
         {
             ClearMovementIfStopped();
-            // Still apply gravity even when not moving
             ApplyMovement(Vector3.zero);
         }
         
@@ -234,7 +212,7 @@ public class PlayerController : MonoBehaviour
     
     private bool ShouldProcessMovement()
     {
-        return HasSignificantInput() && HasSignificantSpeed() && canMove;
+        return HasSignificantInput() && HasSignificantSpeed();
     }
     
     private void ProcessMovement()
@@ -308,13 +286,10 @@ public class PlayerController : MonoBehaviour
             return;
         }
         
-        // Calculate horizontal movement
         Vector3 horizontalMovement = direction * currentSpeed * Time.deltaTime;
         
-        // Calculate vertical movement (gravity)
         Vector3 verticalMovement = new Vector3(0, verticalVelocityY * Time.deltaTime, 0);
         
-        // Combine horizontal and vertical movement
         Vector3 totalMovement = horizontalMovement + verticalMovement;
         
         Vector3 childPosBefore = characterController.transform.position;
@@ -366,12 +341,6 @@ public class PlayerController : MonoBehaviour
         return runSpeed;
     }
     
-    private void SmoothCurrentSpeed()
-    {
-        float smoothTime = targetSpeed > currentSpeed ? accelerationTime : decelerationTime;
-        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedVelocity, smoothTime);
-        ClampToZero(ref currentSpeed, ref speedVelocity);
-    }
     
     private bool CanSprintInCurrentDirection()
     {
@@ -394,18 +363,6 @@ public class PlayerController : MonoBehaviour
         if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
         
         return Vector3.Angle(transform.forward, moveDirection);
-    }
-    
-    private float GetMovementDirectionDot()
-    {
-        if (!HasSignificantInput()) return 0f;
-        
-        Vector3 inputDirection = GetWorldSpaceInputDirection();
-        Vector3 moveDirection = CalculateCameraRelativeDirection(inputDirection);
-        
-        if (moveDirection.magnitude < INPUT_THRESHOLD) return 0f;
-        
-        return Vector3.Dot(transform.forward, moveDirection.normalized);
     }
     
     private bool HasSignificantInput()
@@ -437,9 +394,9 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    public void SetCanMove()
+    public void OnCharacterSwitched()
     {
-        canMove = !canMove;
+        UpdateCharacterController();
     }
     
     public float GetCurrentSpeed() => currentSpeed;
@@ -448,51 +405,15 @@ public class PlayerController : MonoBehaviour
     public float GetCurrentVertical() => currentVertical;
     public bool IsWalking() => isWalking;
     public bool IsSprinting() => isSprinting;
-    public float GetSpeedVelocity() => speedVelocity;
     public Vector3 GetCurrentMoveDirection() => currentMoveDirection;
     public Vector3 GetCalculatedVelocity() => calculatedVelocity;
     public PlayerInputActions GetInputActions() => inputActions;
     public Vector3 GetRawMoveDirection() => currentMoveDirection;
     public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
-    
+    public CharacterController GetCharacterController() => characterController;
    public bool IsGrounded() => isGrounded;
    public bool HasLandedOnce() => hasLandedOnce;
+   public void EnableMovement() => canMove = true;
+   public void DisableMovement() => canMove = false;
     public float GetVerticalVelocity() => verticalVelocityY;
-    
-    public void OnCharacterSwitched()
-    {
-        UpdateCharacterController();
-    }
-    
-    private void OnDrawGizmos()
-    {
-        if (!debugGroundCheck) return;
-        
-        // Draw sphere cast visualization
-        Vector3 spherePosition = transform.position + (Vector3.up * groundCheckRadius);
-        
-        // Draw the sphere at start position
-        Gizmos.color = isGrounded ? Color.green : Color.red;
-        Gizmos.DrawWireSphere(spherePosition, groundCheckRadius);
-        
-        // Draw the sphere at end position
-        Vector3 endPosition = spherePosition + (Vector3.down * (groundCheckDistance + groundCheckRadius));
-        Gizmos.DrawWireSphere(endPosition, groundCheckRadius);
-        
-        // Draw line between them
-        Gizmos.DrawLine(spherePosition, endPosition);
-        
-        // Draw ground hit point if grounded
-        if (isGrounded && characterController != null)
-        {
-            Vector3 hitPoint = transform.position;
-            if (Physics.SphereCast(spherePosition, groundCheckRadius, Vector3.down, 
-                out RaycastHit hit, groundCheckDistance + groundCheckRadius, groundLayerMask))
-            {
-                hitPoint = hit.point;
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawWireCube(hitPoint, Vector3.one * 0.1f);
-            }
-        }
-    }
 }

@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 public class PlayerControllerBridge : MonoBehaviour
@@ -10,9 +9,15 @@ public class PlayerControllerBridge : MonoBehaviour
         playerController = GetComponentInParent<PlayerController>();
     }
     
-    public void SetCanMove() 
+    public void EnableMovement() 
     {
         if (playerController != null)
-            playerController.SetCanMove();
+            playerController.EnableMovement();
+    }
+    
+    public void DisableMovement() 
+    {
+        if (playerController != null)
+            playerController.DisableMovement();
     }
 }

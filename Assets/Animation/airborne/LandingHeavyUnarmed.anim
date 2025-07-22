@@ -113091,7 +113091,7 @@ AnimationClip:
     intParameter: 0
     messageOptions: 0
   - time: 1.4333333
-    functionName: 
+    functionName: EnableMovement
     data: 
     objectReferenceParameter: {fileID: 0}
     floatParameter: 0
