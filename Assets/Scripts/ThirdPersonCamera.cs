@@ -71,6 +71,9 @@ public class ThirdPersonCamera : MonoBehaviour
         if (playerController == null)
             Debug.LogError("ThirdPersonCamera: PlayerController not found!");
         
+        int playerLayer = LayerMask.NameToLayer("Player");
+        collisionLayers = collisionLayers & ~(1 << playerLayer);
+        
         if (collisionLayers == -1)
             collisionLayers = ~(1 << LayerMask.NameToLayer("UI"));
     }
