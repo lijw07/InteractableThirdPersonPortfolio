@@ -55,6 +55,8 @@ public class PlayerController : MonoBehaviour
     private bool isGrounded;
     private bool hasLandedOnce = false;
     
+    private bool canMove = true;
+    
     private void Awake()
     {
         InitializeInputComponents();
@@ -122,21 +124,10 @@ public class PlayerController : MonoBehaviour
         bool wasGrounded = isGrounded;
         isGrounded = controllerGrounded || raycastGrounded;
         
-        // Log state changes
-        if (debugGroundCheck && wasGrounded != isGrounded)
-        {
-            Debug.Log($"Ground state changed: {(isGrounded ? "GROUNDED" : "AIRBORNE")} " +
-                     $"(Controller: {controllerGrounded}, Raycast: {raycastGrounded})");
-        }
-        
         // Track first landing
         if (!wasGrounded && isGrounded && !hasLandedOnce)
         {
             hasLandedOnce = true;
-            if (debugGroundCheck)
-            {
-                Debug.Log("First landing detected!");
-            }
         }
     }
     
@@ -243,7 +234,7 @@ public class PlayerController : MonoBehaviour
     
     private bool ShouldProcessMovement()
     {
-        return HasSignificantInput() && HasSignificantSpeed();
+        return HasSignificantInput() && HasSignificantSpeed() && canMove;
     }
     
     private void ProcessMovement()
@@ -444,6 +435,11 @@ public class PlayerController : MonoBehaviour
             value = 0f;
             velocity = 0f;
         }
+    }
+    
+    public void SetCanMove()
+    {
+        canMove = !canMove;
     }
     
     public float GetCurrentSpeed() => currentSpeed;

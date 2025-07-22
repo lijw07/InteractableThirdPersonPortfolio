@@ -19,6 +19,8 @@ public class FootstepSystem : MonoBehaviour
     
     [Header("Pitch Variation")]
     [Range(0f, 0.5f)] public float pitchVariation = 0.1f;
+
+    public AudioClip[] landingSound;
     
     private CharacterController characterController;
     private Rigidbody rb;
@@ -39,6 +41,26 @@ public class FootstepSystem : MonoBehaviour
     {
         PlayFootstepSound();
     }
+
+    public void OnLand()
+    {
+        playLandingSound();
+    }
+
+    void playLandingSound()
+    {
+        if (landingSound == null || landingSound.Length == 0) 
+        {
+            return;
+        }
+        
+        AudioClip clipToPlay = landingSound[Random.Range(0, landingSound.Length)];
+        
+        footstepAudioSource.volume = 0.5f;
+        footstepAudioSource.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);
+        
+        footstepAudioSource.PlayOneShot(clipToPlay);
+    }
     
     float GetCurrentMovementSpeed()
     {
@@ -57,6 +79,7 @@ public class FootstepSystem : MonoBehaviour
     
     void PlayFootstepSound() 
     {
+        Debug.Log($"Playing footstep sound at volume {footstepAudioSource.volume} with clip {footstepAudioSource.clip}");
         if (dirtFootsteps == null || dirtFootsteps.Length == 0) 
         {
             return;
