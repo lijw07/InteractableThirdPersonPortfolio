@@ -32,8 +32,9 @@ public class FaceCameraSmooth : MonoBehaviour
         {
             if (canvas == null || !canvas.activeSelf) continue;
 
-            Quaternion targetRotation = Quaternion.LookRotation(
-                canvas.transform.position - mainCamera.transform.position);
+            Vector3 direction = mainCamera.transform.position - canvas.transform.position;
+            direction.y = 0f; // Optional: keeps canvas upright if needed
+            Quaternion targetRotation = Quaternion.LookRotation(-direction.normalized);
 
             canvas.transform.rotation = Quaternion.Lerp(
                 canvas.transform.rotation,
