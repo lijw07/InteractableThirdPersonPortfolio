@@ -63,10 +63,18 @@ public class PlayerAnimationController : MonoBehaviour
         float horizontal = playerController.GetCurrentHorizontal();
         float vertical = playerController.GetCurrentVertical();
         bool isGrounded = playerController.IsGrounded();
+        bool hasLandedOnce = playerController.HasLandedOnce();
 
         animator.SetFloat(MovementSpeed, currentSpeed);
         animator.SetFloat(Horizontal, horizontal);
         animator.SetFloat(Vertical, vertical);
+
+        animator.SetBool(IsGrounded, isGrounded);
+        
+        if (hasLandedOnce && !animator.GetBool("HasLandedOnce"))
+        {
+            animator.SetBool("HasLandedOnce", true);
+        }
     }
     
     public void OnCharacterSwitched()

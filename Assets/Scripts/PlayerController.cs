@@ -20,13 +20,14 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float gravity = -9.81f;
     [SerializeField] private float groundCheckDistance = 0.1f;
     [SerializeField] private LayerMask groundLayerMask = -1;
+    [SerializeField] private float groundCheckRadius = 0.3f;
+    [SerializeField] private bool debugGroundCheck = false;
     
     private const float ZERO_THRESHOLD = 0.001f;
     private const float INPUT_THRESHOLD = 0.1f;
     private const float SPRINT_ANGLE_THRESHOLD = 60f;
     private const float SIDEWAYS_MIN_ANGLE = 60f;
     private const float SIDEWAYS_MAX_ANGLE = 120f;
-    private const float MOVEMENT_DIRECTION_THRESHOLD = 0.5f;
     
     private CharacterController characterController;
     private CharacterManageController characterManager;
@@ -50,9 +51,9 @@ public class PlayerController : MonoBehaviour
     private Vector3 smoothMoveDirection;
     private Vector3 moveDirectionVelocity;
     
-    // Gravity-related variables
     private float verticalVelocityY;
     private bool isGrounded;
+    private bool hasLandedOnce = false;
     
     private void Awake()
     {
@@ -80,31 +81,72 @@ public class PlayerController : MonoBehaviour
         ProcessMovementAndRotation();
         UpdateVelocityTracking();
     }
-    
+
     private void CheckGroundStatus()
     {
-        if (characterController == null) return;
+        // First check CharacterController's built-in ground detection
+        bool controllerGrounded = characterController != null && characterController.isGrounded;
         
-        // Check if grounded using CharacterController's built-in isGrounded
-        isGrounded = characterController.isGrounded;
-        
-        // Additional raycast check for more reliable ground detection
-        Vector3 rayOrigin = transform.position + Vector3.up * 0.1f;
-        Ray ray = new Ray(rayOrigin, Vector3.down);
-        
-        bool raycastHit = Physics.Raycast(ray, groundCheckDistance + 0.1f, groundLayerMask);
-        isGrounded = isGrounded || raycastHit;
-        
-        // Reset vertical velocity when grounded
-        if (isGrounded && verticalVelocityY < 0)
+        // Then perform sphere cast for more reliable ground detection
+        bool raycastGrounded = false;
+        if (characterController != null)
         {
-            verticalVelocityY = -2f; // Small negative value to keep grounded
+            Vector3 spherePosition = transform.position + (Vector3.up * groundCheckRadius);
+            raycastGrounded = Physics.SphereCast(spherePosition, groundCheckRadius, Vector3.down, 
+                out RaycastHit hit, groundCheckDistance + groundCheckRadius, groundLayerMask);
+            
+            // Debug visualization with Debug.DrawRay
+            if (debugGroundCheck)
+            {
+                float rayLength = groundCheckDistance + groundCheckRadius;
+                Debug.DrawRay(spherePosition, Vector3.down * rayLength, 
+                    raycastGrounded ? Color.green : Color.red, 0.1f);
+                
+                // Draw additional rays around the sphere edge for better visualization
+                for (int i = 0; i < 8; i++)
+                {
+                    float angle = i * Mathf.PI * 2 / 8;
+                    Vector3 offset = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * groundCheckRadius;
+                    Debug.DrawRay(spherePosition + offset, Vector3.down * rayLength, 
+                        raycastGrounded ? Color.green : Color.red, 0.1f);
+                }
+                
+                if (raycastGrounded)
+                {
+                    Debug.Log($"Ground hit: {hit.collider.name} at distance: {hit.distance}");
+                }
+            }
+        }
+        
+        // Use either detection method
+        bool wasGrounded = isGrounded;
+        isGrounded = controllerGrounded || raycastGrounded;
+        
+        // Log state changes
+        if (debugGroundCheck && wasGrounded != isGrounded)
+        {
+            Debug.Log($"Ground state changed: {(isGrounded ? "GROUNDED" : "AIRBORNE")} " +
+                     $"(Controller: {controllerGrounded}, Raycast: {raycastGrounded})");
+        }
+        
+        // Track first landing
+        if (!wasGrounded && isGrounded && !hasLandedOnce)
+        {
+            hasLandedOnce = true;
+            if (debugGroundCheck)
+            {
+                Debug.Log("First landing detected!");
+            }
         }
     }
     
     private void UpdateGravity()
     {
-        if (!isGrounded)
+        if (isGrounded && verticalVelocityY < 0)
+        {
+            verticalVelocityY = -2f; // Small downward force to keep grounded
+        }
+        else
         {
             verticalVelocityY += gravity * Time.deltaTime;
         }
@@ -177,6 +219,8 @@ public class PlayerController : MonoBehaviour
         else
         {
             ClearMovementIfStopped();
+            // Still apply gravity even when not moving
+            ApplyMovement(Vector3.zero);
         }
         
         HandleRotation();
@@ -267,7 +311,6 @@ public class PlayerController : MonoBehaviour
             if (characterController == null) return;
         }
         
-        // Check if the controller is active before moving
         if (!characterController.enabled || !characterController.gameObject.activeInHierarchy)
         {
             UpdateCharacterController();
@@ -283,20 +326,15 @@ public class PlayerController : MonoBehaviour
         // Combine horizontal and vertical movement
         Vector3 totalMovement = horizontalMovement + verticalMovement;
         
-        // Use CharacterController for collision detection, but apply movement to parent
         Vector3 childPosBefore = characterController.transform.position;
         
-        // Move the CharacterController to handle collisions
         characterController.Move(totalMovement);
         
-        // Calculate how much the CharacterController actually moved (after collisions)
         Vector3 childPosAfter = characterController.transform.position;
-        Vector3 actualMovement = childPosAfter - childPosBefore;
+        Vector3 deltaMovement = childPosAfter - childPosBefore;
         
-        // Apply the actual movement to the parent instead
-        transform.position += actualMovement;
+        transform.position += deltaMovement;
         
-        // Reset the child's position to maintain consistent relative positioning
         characterController.transform.localPosition = Vector3.zero;
     }
     
@@ -420,15 +458,45 @@ public class PlayerController : MonoBehaviour
     public PlayerInputActions GetInputActions() => inputActions;
     public Vector3 GetRawMoveDirection() => currentMoveDirection;
     public Vector3 GetSmoothedMoveDirection() => smoothMoveDirection;
-    public bool IsMovingBackward() => GetMovementDirectionDot() < -MOVEMENT_DIRECTION_THRESHOLD;
-    public bool IsMovingForward() => GetMovementDirectionDot() > MOVEMENT_DIRECTION_THRESHOLD;
     
-    // New gravity-related public methods
-    public bool IsGrounded() => isGrounded;
+   public bool IsGrounded() => isGrounded;
+   public bool HasLandedOnce() => hasLandedOnce;
     public float GetVerticalVelocity() => verticalVelocityY;
     
     public void OnCharacterSwitched()
     {
         UpdateCharacterController();
+    }
+    
+    private void OnDrawGizmos()
+    {
+        if (!debugGroundCheck) return;
+        
+        // Draw sphere cast visualization
+        Vector3 spherePosition = transform.position + (Vector3.up * groundCheckRadius);
+        
+        // Draw the sphere at start position
+        Gizmos.color = isGrounded ? Color.green : Color.red;
+        Gizmos.DrawWireSphere(spherePosition, groundCheckRadius);
+        
+        // Draw the sphere at end position
+        Vector3 endPosition = spherePosition + (Vector3.down * (groundCheckDistance + groundCheckRadius));
+        Gizmos.DrawWireSphere(endPosition, groundCheckRadius);
+        
+        // Draw line between them
+        Gizmos.DrawLine(spherePosition, endPosition);
+        
+        // Draw ground hit point if grounded
+        if (isGrounded && characterController != null)
+        {
+            Vector3 hitPoint = transform.position;
+            if (Physics.SphereCast(spherePosition, groundCheckRadius, Vector3.down, 
+                out RaycastHit hit, groundCheckDistance + groundCheckRadius, groundLayerMask))
+            {
+                hitPoint = hit.point;
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawWireCube(hitPoint, Vector3.one * 0.1f);
+            }
+        }
     }
 }

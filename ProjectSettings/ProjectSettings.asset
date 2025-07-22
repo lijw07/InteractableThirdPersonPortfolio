@@ -934,7 +934,9 @@ PlayerSettings:
   windowsGamepadBackendHint: 0
   cloudProjectId: 
   framebufferDepthMemorylessMode: 0
-  qualitySettingsNames: []
+  qualitySettingsNames:
+  - Mobile
+  - PC
   projectName: 
   organizationId: 
   cloudEnabled: 0
