@@ -566,7 +566,7 @@ GameObject:
   - component: {fileID: 3698476647232806809}
   m_Layer: 14
   m_Name: Man_Director_Movie
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

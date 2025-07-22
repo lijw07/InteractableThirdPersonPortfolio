@@ -79,7 +79,6 @@ public class FootstepSystem : MonoBehaviour
     
     void PlayFootstepSound() 
     {
-        Debug.Log($"Playing footstep sound at volume {footstepAudioSource.volume} with clip {footstepAudioSource.clip}");
         if (dirtFootsteps == null || dirtFootsteps.Length == 0) 
         {
             return;

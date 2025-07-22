@@ -99,8 +99,6 @@ public class CharacterManageController : MonoBehaviour
 
         DeactivateCharacter(previousIndex);
         ActivateCharacter(currentCharacterIndex);
-
-        Debug.Log($"Switched to character: {currentCharacter.name}");
     }
 
     

@@ -11,7 +11,6 @@ public class FootstepBridge : MonoBehaviour
     
     public void OnFootstep() 
     {
-        Debug.Log($"{name} triggered OnFootstep at {Time.time}");
         if (parentFootstepSystem != null)
             parentFootstepSystem.OnFootstep();
     }
