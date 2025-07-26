@@ -17,7 +17,7 @@ public class FaceCameraSmooth : MonoBehaviour
 
     private Coroutine activationCoroutine;
 
-    private readonly string[] defaultCanvasNames = { "Education", "Project", "Experience" };
+    private readonly string[] defaultCanvasNames = { "Education", "Project", "Experience", "Skill" };
 
     void Start()
     {
